@@ -3,7 +3,7 @@
 
 ### TEMPERATURE SET LIST:
 # [[t_a1, t_z1, interval1, step1], [t_a2, t_z2, interval2, step2], [...]] (int format)
-temp_set = [[300, 450, 10, 10]]
+temp_set = [[300, 320, 10, 0.1]]
 
 ### COMPUTER SETTINGS
 device = 0      ### GPU device ID (int format)
@@ -36,11 +36,13 @@ def MAIN():
 #    prepare_system()
 #    statistics()
 #    equil()
-#    thermic_titration()
-#    final_merge_trj()
-#    merge_sim()
+    thermic_titration()
+    final_merge_trj()
+    merge_sim()
+    time_list = getTime()
+    rmsd_backbone, rmsd_ligand = calcRMSD()
     slope_plot()
-    TTMD_graph()
+    TTMD_graph(time_list, rmsd_backbone, rmsd_ligand)
 
 ### LAUNCHING TTMD
 # check temperature set list and computer settings.
@@ -51,7 +53,7 @@ def MAIN():
 ###############################################################################
 
 equil1_ns = 0.1     ### equil1 duration (ns)
-equil2_ns = 0.5     ### equil2 duration (ns)
+equil2_ns = 0.1     ### equil2 duration (ns)
 
 timestep = 2
 dcdfreq = 10000
@@ -77,25 +79,26 @@ header = '''
 
 ###############################################################################
 
-from fileinput import filename
+
 import os, sys, glob
-import numpy as np
+from fileinput import filename
 from tabulate import tabulate
-import oddt
-from oddt import fingerprints
-import MDAnalysis as mda
-import sklearn.metrics
-from sklearn.metrics import pairwise_distances
 from operator import itemgetter
-import MDAnalysis.transformations as trans
-from MDAnalysis.analysis import align
-import pandas as pd
-from matplotlib import pyplot as plt
+import numpy as np #1.20.1
+import pandas as pd #1.2.2
+from matplotlib import pyplot as plt #3.3.4
 import matplotlib.colors as mplcolors
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
-from scipy.interpolate import make_interp_spline, BSpline
-from scipy.stats import linregress
+import oddt #0.7
+from oddt import fingerprints
+import MDAnalysis as mda #1.0.0
+import MDAnalysis.transformations as trans
+from MDAnalysis.analysis import align
 from MDAnalysis.analysis import rms
+import sklearn.metrics #0.24.1
+from sklearn.metrics import pairwise_distances
+from scipy.interpolate import make_interp_spline, BSpline #1.6.0
+from scipy.stats import linregress
 import multiprocessing
 import tqdm
 
@@ -855,9 +858,9 @@ def run_temp(temperature, t_step, restart):
     trajectoryPeriod 10000""")
 
     os.system(f"acemd3 --device {device} run.nvt")
-    os.system(f"cp output_{temperature}.coor output_files/output_{temperature}.coor")
-    os.system(f"cp output_{temperature}.vel output_files/output_{temperature}.vel")
-    os.system(f"cp output_{temperature}.xsc output_files/output_{temperature}.xsc")
+    os.system(f"cp output.coor output_files/output_{temperature}.coor")
+    os.system(f"cp output.vel output_files/output_{temperature}.vel")
+    os.system(f"cp output.xsc output_files/output_{temperature}.xsc")
 
 
 
@@ -991,8 +994,10 @@ def final_merge_trj():
         for t in done_temperature:
             trj = f'swag_{t}.dcd'
             trj_list.append(trj)
+            print(trj_list)
         
         merge_trj(trj_list, 'merged_swag.dcd', remove=False)
+        os.listdir(os.getcwd())
     
     if dryer == 'yes':
         blocks = trajectory_blocks('solv.pdb', 'merged_swag.dcd')[0]
@@ -1191,13 +1196,13 @@ def calcRMSD():
 
 
 
-def TTMD_graph():
+def TTMD_graph(time_list, rmsd_backbone, rmsd_ligand):
     os.chdir(f'{folder}/MD')
     #### this function dynamically plots IFPcs and both backbone and ligand RMSD vs simulation time
     print("\nCombined plot...")
 
     sim_list = getSim()
-    time_list = getTime()
+    #time_list = getTime()
 
     #create temperature list
     temperature_list = [T_start]
@@ -1234,20 +1239,23 @@ def TTMD_graph():
     axs[0].set_xlabel('Time (ns)')
     axs[0].set_ylabel('IFP$_{CS}$')
     axs[0].set_ylim(-1,0)
-    axs[0].set_xlim(0,160)
+    x_lim = ( temp_set[0][1] - temp_set[0][0] ) / temp_set[0][2] * temp_set[0][3] + temp_set[0][3]
+    axs[0].set_xlim(0,x_lim)
     s = axs[0].scatter(x,y, c=temperature_list, cmap='RdYlBu_r', norm=divnorm)
     cbar = add_colorbar_outside(s, ax=axs[0])
     cbar.set_label('Temperature (K)', rotation=270, labelpad=15)
 
     # plot RMSD
     x1 = time_list[:-1] #MODIFICARE!!
-    y1 = calcRMSD()[0]
+    #y1 = calcRMSD()[0]
+    y1 = rmsd_backbone
     xnew1 = np.linspace(x1[0], x1[-1], 300) 
     spl1 = make_interp_spline(x1, y1, k=5)
     power_smooth1 = spl1(xnew1)
     axs[1].plot(xnew1, power_smooth1, color='seagreen', label='Backbone')
     x2 = time_list[:-1]
-    y2 = calcRMSD()[1]
+    #y2 = calcRMSD()[1]
+    y2 = rmsd_ligand
     xnew2 = np.linspace(x2[0], x2[-1], 300) 
     spl2 = make_interp_spline(x2, y2, k=5)
     power_smooth2 = spl2(xnew2)
@@ -1255,12 +1263,12 @@ def TTMD_graph():
     axs[1].set_ylabel('RMSD (Å)')
     axs[1].set_xlabel('Time (ns)')
     axs[1].set_title('RMSD')
-    axs[1].set_xlim(0,160)
+    axs[1].set_xlim(0,x_lim)
     axs[1].set_ylim(0)
     axs[1].legend()
     axs[1].legend(loc='center left', bbox_to_anchor=(1, 0.5))
     fig.tight_layout()
-    fig.savefig('bottom_right_panel.png', dpi=300)
+    fig.savefig('combined_plot.png', dpi=300)
 
 
 
@@ -1268,15 +1276,9 @@ def slope_plot():
     os.chdir(f'{folder}/MD')
     print("\nThermal titration profile...")
     #### this function dynamically plots average IFPcs vs temperature
-    for set in temp_set:
-        t_a = set[0]
-        t_z = set[1]
-        interval = set[2]
-        t_step = set[3]
-        for temperature in range(t_a, t_z + interval, interval):
-            if os.path.exists(f'sim_{temperature}.dat'):
-                done_temperature.append(temperature)
-
+    done_temperature = []
+    for temp in range(temp_set[0][0],temp_set[-1][1]+temp_set[0][2], temp_set[0][2]):
+        done_temperature.append(temp)
     temperature_array = np.array(done_temperature).astype(int)
     fig, axs = plt.subplots(nrows=1, ncols=1)
     avg_list = []
@@ -1284,7 +1286,6 @@ def slope_plot():
         lines = avg.readlines()
         for line in lines:
             avg_list.append(float(line.rstrip('\n')))
-    
     first_last_T = [done_temperature[0], done_temperature[-1]]
     axs.set_xlim(first_last_T)
     axs.set_ylim(-1,0)
@@ -1299,7 +1300,7 @@ def slope_plot():
     axs.set_ylim(-1,0)
     axs.set_xlim(T_start,T_stop)
     axs.legend()
-    fig.savefig('slope.png', dpi=300)
+    fig.savefig('titration_profile.png', dpi=300)
 
 
 
