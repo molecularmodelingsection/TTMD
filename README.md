@@ -1,15 +1,15 @@
 # TTMD
 Python code to run Thermal Titration Molecular Dynamics (TTMD) simulations
 
-Reference publication:
-**"Qualitative Estimation of Protein-Ligand Complex Stability through Thermal Titration Molecular Dynamics (TTMD) Simulations."**
+Reference publication:  
+**"Qualitative Estimation of Protein-Ligand Complex Stability through Thermal Titration Molecular Dynamics (TTMD) Simulations."**  
 Pavan M., Menin S., Bassani D., Sturlese M., Moro S. (under peer-review at *Journal of Chemical Information and Modeling*)
 
 This script automatizes the passages needed to execute a TTMD simulation, from the system setup, to the equilibration protocol,
 to the production phase and trajectory analyses. A YAML file is provided in order to reconstitute the right Python virtual 
 environment needed to run the TTMD.py script. The code relies on **two external software dependencies**:
 - **AMBER14**
-- **Visual Molecular Dynamics (VMD)**
+- **Visual Molecular Dynamics (VMD)**  
 The current version of the script only supports the **ACEMD3 engine** to run molecular dynamics simulations. ACEMD3 is already
 installed within the provided conda environment.
 
