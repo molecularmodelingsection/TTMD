@@ -3,14 +3,14 @@
 
 ### TEMPERATURE SET LIST:
 # [[t_a1, t_z1, interval1, step1], [t_a2, t_z2, interval2, step2], [...]] (int format)
-temp_set = [[300, 320, 10, 0.1]]
+temp_set = [[300, 450, 10, 10]] #[t_start, t_end, t_step, step_len]
 
 ### COMPUTER SETTINGS
 device = 0      ### GPU device ID (int format)
 n_procs = 4     ### cores number for analysis modules (int format)
 
 protein_name = 'protein.pdb'    ### protein filename (.pdb)
-ligand_name = 'ligand.mol2'     ### ligand filename (.pdb)
+ligand_name = 'ligand.mol2'     ### ligand filename (.mol2)
 ligand_charge = 0               ### ligand charge (int format)
 
 ### water padding around protein (Å)
@@ -31,50 +31,61 @@ resume = True       ### if True: resume simulation
 
 ### comment MAIN row(s) to skip
 def MAIN():
-    print(header)
-    
-#    prepare_system()
-#    statistics()
-#    equil()
+    print(header) 
+    #### PREPARATORY STEPS   
+    prepare_system()
+    statistics()
+    equil()
+    #### TITRATION BLOCK
     thermic_titration()
     final_merge_trj()
     merge_sim()
     time_list = getTime()
     rmsd_backbone, rmsd_ligand = calcRMSD()
-    slope_plot()
-    TTMD_graph(time_list, rmsd_backbone, rmsd_ligand)
-
+    titration_timeline(time_list, rmsd_backbone, rmsd_ligand)
+    titration_profile()
+    
 ### LAUNCHING TTMD
 # check temperature set list and computer settings.
-# starting folder set-up: protein file (.pdb), ligand file (.pdb)
-# launch: 'python TTMD_file.py'
+# starting folder set-up: protein file (.pdb), ligand file (.mol2)
+# launch: 'python3 TTMD_file.py'
 # N.B. this script works with python3
 
 ###############################################################################
 
-equil1_ns = 0.1     ### equil1 duration (ns)
-equil2_ns = 0.1     ### equil2 duration (ns)
+min_steps  = 500     ### minimization steps with the conjugate gradient algorithm before equil1
+equil1_len = 0.1     ### equil1 duration (ns)
+equil2_len = 0.1     ### equil2 duration (ns)
 
-timestep = 2
-dcdfreq = 10000
-stride = 1
+timestep = 2         # integration timestep in fs
+dcdfreq = 10000      # frequency at which a trajectory frame is saved
+stride = 1           # stride to apply to final trajectory
 
 smooth = 200        ### smoothing factor in final graphs
 
 ###############################################################################
 
 header = '''
+###########################################################################
+                                                                           
+                ███         ███       ▄▄▄▄███▄▄▄▄   ████████▄                
+            ▀█████████▄ ▀█████████▄ ▄██▀▀▀███▀▀▀██▄ ███   ▀███            
+               ▀███▀▀██    ▀███▀▀██ ███   ███   ███ ███    ███               
+                ███   ▀     ███   ▀ ███   ███   ███ ███    ███              
+                ███         ███     ███   ███   ███ ███    ███             
+                ███         ███     ███   ███   ███ ███    ███             
+                ███         ███     ███   ███   ███ ███   ▄███             
+               ▄████▀      ▄████▀    ▀█   ███   █▀  ████████▀                 
+                             
+                                                                @smenin
 
-    ███         ███       ▄▄▄▄███▄▄▄▄   ████████▄  
-▀█████████▄ ▀█████████▄ ▄██▀▀▀███▀▀▀██▄ ███   ▀███ 
-   ▀███▀▀██    ▀███▀▀██ ███   ███   ███ ███    ███ 
-    ███   ▀     ███   ▀ ███   ███   ███ ███    ███ 
-    ███         ███     ███   ███   ███ ███    ███ 
-    ███         ███     ███   ███   ███ ███    ███ 
-    ███         ███     ███   ███   ███ ███   ▄███ 
-   ▄████▀      ▄████▀    ▀█   ███   █▀  ████████▀  
-
-                                    by Silvia Menin               
+    "Qualitative Estimation of Protein-Ligand Complex Stability through    
+         Thermal Titration Molecular Dynamics (TTMD) Simulations."  
+         
+            Pavan M., Menin S., Bassani D., Sturlese M., Moro S.
+            @Molecular Modeling Section, University of Padova
+            
+###########################################################################                        
 '''
 
 ###############################################################################
@@ -89,7 +100,7 @@ import pandas as pd #1.2.2
 from matplotlib import pyplot as plt #3.3.4
 import matplotlib.colors as mplcolors
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
-import oddt #0.7
+import oddt #0.7 (needs openbabel or rdkit, installed version is openbabel=3.1.1)
 from oddt import fingerprints
 import MDAnalysis as mda #1.0.0
 import MDAnalysis.transformations as trans
@@ -287,7 +298,7 @@ def wrap_blocks(*args):
     block_name = f'block_{first}_{last}.dcd'
     with mda.Writer(block_name, u.atoms.n_atoms) as W:
         for ts in u.trajectory[first:last]:
-            old_rmsd, new_rmsd = align.alignto(u, ref, select='protein and name CA', weights='mass')
+            old_rmsd, new_rmsd = align.alignto(u, ref, select='protein and backbone', weights='mass')
             W.write(u.atoms)
     return block_name
 
@@ -520,7 +531,7 @@ COMPL = combine{{PROT LIG}}
 saveAmberParm LIG ligand.prmtop ligand.crd
 saveAmberParm PROT protein.prmtop protein.crd
 saveAmberParm COMPL complex.prmtop complex.crd
-solvatebox COMPL TIP3PBOX 20.0
+solvatebox COMPL TIP3PBOX {padding}
 addIonsRand COMPL Na+ {cations} Cl- {anions} 5
 savepdb COMPL solv.pdb
 saveamberparm COMPL solv.prmtop solv.inpcrd
@@ -662,94 +673,72 @@ quit""")
             if line.startswith('celldimension '):
                 dimension = str(line.split(' ')[1]) + ' ' + str(line.split(' ')[2]) + ' ' + str(line.split(' ')[3].rstrip('\n'))
                 
-    with open("input.nve", 'w') as f:
+    with open("equil1.nvt", 'w') as f:
         f.write(f"""parmfile solv.prmtop
 coordinates solv.pdb
 temperature {T_start}
-timestep 2
+timestep {timestep}
 thermostat on
 thermostatTemperature {T_start}
 thermostatDamping 0.1
-minimize 500
-run {equil1_ns}ns
+minimize {min_steps}
+run {equil1_len}ns
 restart {restart}
 PME on
 cutoff 9.0
 switching on
 switchDistance 7.5
 atomRestraint "protein or resname LIG" setpoints 5@0
-trajectoryFile nve.dcd
-trajectoryPeriod 10000
+trajectoryFile equil1.dcd
+trajectoryPeriod {dcdfreq}
 boxSize {dimension}""")
 
-    with open("set_constraints_1.vmd", 'w') as f:
-        f.write("""mol delete all;
-mol load parm7 solv.prmtop pdb solv.pdb
-set all [atomselect top all]
-set sel [atomselect top "protein or resname LIG or resname ACE or resname NME"]
-$all set beta 0
-$all set occupancy 0
-$sel set beta 1
-$all writepdb constrains.pdb
-quit""")
-
     os.system("rm get_celldimension.vmd celldimension.log")
-    os.system(f"acemd3 --device {device} input.nve")
+    os.system(f"acemd3 --device {device} equil1.nvt")
 
 
 
 def equil2(restart):
-    with open("input.npt", 'w') as f:
+    with open("equil2.npt", 'w') as f:
         f.write(f"""parmfile solv.prmtop
 coordinates solv.pdb
 binCoordinates output.coor
 binVelocities output.vel
 extendedSystem output.xsc
 temperature {T_start}
-timestep 2
+timestep {timestep}
 thermostat on
 thermostatTemperature {T_start}
 thermostatDamping 0.1
 barostat on
 barostatPressure 1.01325
-run {equil2_ns}ns
+run {equil2_len}ns
 restart {restart}
 PME on
 cutoff 9.0
 switching on
 switchDistance 7.5
-atomRestraint "protein and name CA or resname LIG" setpoints 5@0
-trajectoryFile npt.dcd
-trajectoryPeriod 10000""")
+atomRestraint "protein and backbone or resname LIG" setpoints 5@0
+trajectoryFile equil2.dcd
+trajectoryPeriod {dcdfreq}""")
 
-    with open("set_constraints_2.vmd", 'w') as f:
-        f.write("""mol delete all;
-mol load parm7 solv.prmtop pdb solv.pdb
-set all [atomselect top all]
-set sel [atomselect top "protein and name CA or resname LIG"]
-$all set beta 0
-$all set occupancy 0
-$sel set beta 1
-$all writepdb constrains_2.pdb
-quit""")
-
-    os.system(f"acemd3 --device {device} input.npt")
+    os.system(f"acemd3 --device {device} equil2.npt")
 
 
 
 def equil():
     os.chdir(f"{folder}/equil1")
     print('————————————————————\nRUNNING EQUILIBRATION\n————————————————————\n')
-    if not os.path.exists(f"{folder}/equil1/nve.dcd"):
+    if not os.path.exists(f"{folder}/equil1/equil1.dcd"):
         print('Running equil1')
         equil1('off')
 
     else:
         print('Check equil1 trajectory integrity')
 
-        check_u = mda.Universe('solv.prmtop', 'nve.dcd')
+        check_u = mda.Universe('solv.prmtop', 'equil1.dcd')
         check_frames = len(check_u.trajectory)
-        equil1_frame = equil1_ns / conversion_factor
+        equil1_frame = equil1_len / conversion_factor
 
         if float(check_frames) == float(equil1_frame):
             print('——Trajectory integrity checked')
@@ -763,7 +752,7 @@ def equil():
                 
 
             else:
-                os.system(f'rm nve.dcd')
+                os.system(f'rm equil1.dcd')
                 print('————Restarting equil1')
                 equil1('off')
 
@@ -771,16 +760,16 @@ def equil():
 
     os.chdir(f"{folder}/equil2")
 
-    if not os.path.exists(f"{folder}/equil2/npt.dcd"):
+    if not os.path.exists(f"{folder}/equil2/equil2.dcd"):
         print('Running equil2')
         equil2('off')
 
     else:
         print('Check equil2 trajectory integrity')
 
-        check_u = mda.Universe('solv.prmtop', 'npt.dcd')
+        check_u = mda.Universe('solv.prmtop', 'equil2.dcd')
         check_frames = len(check_u.trajectory)
-        equil2_frame = equil2_ns / conversion_factor
+        equil2_frame = equil2_len / conversion_factor
 
         if float(check_frames) == float(equil2_frame):
             print('——Trajectory integrity checked')
@@ -793,7 +782,7 @@ def equil():
 
             else:
                 print('————Restarting equil2')
-                os.system(f'rm npt.dcd')
+                os.system(f'rm equil2.dcd')
                 equil('off')
 
     os.system("cp output* ../MD")
@@ -803,7 +792,7 @@ def ref_fingerprint():
     global ref_fp
     if not os.path.exists(f'{folder}/MD/reference_ligand.pdb'):
         os.chdir(f"{folder}/equil2")
-        ref_u = mda.Universe('solv.prmtop', 'npt.dcd')
+        ref_u = mda.Universe('solv.prmtop', 'equil2.dcd')
 
         ref = mda.Universe('solv.pdb') 
         protein = ref_u.select_atoms('protein')
@@ -814,7 +803,7 @@ def ref_fingerprint():
                         trans.wrap(not_protein, compound='residues')]
         ref_u.trajectory.add_transformations(*transforms)
         
-        old_rmsd, new_rmsd = align.alignto(ref_u, ref, select='protein and name CA', weights='mass')
+        old_rmsd, new_rmsd = align.alignto(ref_u, ref, select='protein and backbone', weights='mass')
         
         ref_u.trajectory[-1]
         ref_u_ligand = ref_u.select_atoms('resname LIG')
@@ -844,7 +833,7 @@ def run_temp(temperature, t_step, restart):
     binCoordinates output.coor
     binVelocities output.vel
     extendedSystem output.xsc
-    timestep 2
+    timestep {timestep}
     thermostat on
     thermostatTemperature {temperature}
     thermostatDamping 0.1
@@ -855,7 +844,7 @@ def run_temp(temperature, t_step, restart):
     switching on
     switchDistance 7.5
     trajectoryFile run_{temperature}.dcd
-    trajectoryPeriod 10000""")
+    trajectoryPeriod {dcdfreq}""")
 
     os.system(f"acemd3 --device {device} run.nvt")
     os.system(f"cp output.coor output_files/output_{temperature}.coor")
@@ -1052,80 +1041,6 @@ def sim_list():
 
     return sim_list
 
-
-
-def interaction_plot():
-    os.chdir(f'{folder}/MD')
-    fig, axs = plt.subplots(nrows=2, ncols=1)
-    x = np.array(time_list)
-    y = np.array(sim_list)
-    xnew = np.linspace(x.min(), x.max(), 500) 
-    spl = make_interp_spline(x, y, k=3)
-    power_smooth = spl(xnew)
-    axs[0].set_title('Interaction Fingerprint Similarity')
-    axs[0].plot(xnew, power_smooth, color='blue', label=f'IFP_score')
-    axs[0].set_xlabel('Time (ns)')
-    axs[0].set_ylabel('IFP Similarity Score')
-    axs[0].legend()
-
-    if dryer == 'yes':
-        topology = 'dry.pdb'
-        trajectory = 'dry.dcd'
-    else:
-        topology = 'solv.pdb'
-        trajectory = 'merged_swag.dcd'
-
-    u = mda.Universe(topology, trajectory)
-    R = rms.RMSD(u, u, select='backbone', groupselections=['resname LIG'], ref_frame=0)
-    R.run()
-    df = pd.DataFrame(R.rmsd, columns=['Frame', 'Time (ns)', 'backbone', 'resname LIG' ])
-    x1 = np.array(time_list)[0:-1]
-    y1 = df['backbone']
-    xnew1 = np.linspace(x1.min(), x1.max(), 300) 
-    spl1 = make_interp_spline(x1, y1, k=5)
-    power_smooth1 = spl1(xnew1)
-    axs[1].plot(xnew1, power_smooth1, color='green', label='Backbone')
-    x2 = np.array(time_list)[0:-1]
-    y2 = df['resname LIG']
-    xnew2 = np.linspace(x2.min(), x2.max(), 300) 
-    spl2 = make_interp_spline(x2, y2, k=5)
-    power_smooth2 = spl2(xnew2)
-    axs[1].plot(xnew2, power_smooth2, color='orange', label='Ligand')
-    axs[1].set_ylabel('RMSD')
-    axs[1].set_xlabel('Time (ns)')
-    axs[1].set_title('RMSD')
-    axs[1].legend()
-
-    fig.tight_layout()
-    fig.savefig('graph.png', dpi=300)
-
-
-
-# def slope_plot():
-#     fig, axs = plt.subplots(nrows=1, ncols=1)
-    
-#     avg_list = []
-#     with open('avg_score', 'r') as avg:
-#         lines = avg.readlines()
-#         for line in lines:
-#             avg_list.append(float(line.rstrip('\n')))
-
-#     first_last_T = [done_temperature[0], done_temperature[-1]]
-#     axs.set_xlim(first_last_T)
-#     axs.set_ylim(-1,0)
-#     axs.scatter(done_temperature, avg_list)
-#     first_last_score = [-1.0, avg_list[-1]]
-#     f = np.poly1d(np.polyfit(first_last_T, first_last_score, 1))
-#     slope, intercept, r_value, p_value, std_err = linregress(first_last_T, first_last_score)
-#     axs.plot(done_temperature, f(done_temperature), color='red', label="{:.5f}".format(slope))
-#     axs.set_title('Interaction Fingerprint Similarity')
-#     axs.set_xlabel('Temperature (K)')
-#     axs.set_ylabel('Average IFP$_{CS}$')
-#     axs.legend()
-#     fig.savefig('slope_plot.png', dpi=300)
-
-
-
 def getSim():
 
     print("\nRetrieving similarity values...")
@@ -1187,7 +1102,6 @@ def getTime():
 
 
 def calcRMSD():
-    print("\nCalculating RMSD...")
     u = mda.Universe(f'{folder}/MD/dry.pdb', f'{folder}/MD/dry.dcd')
     R = rms.RMSD(u, u, select='backbone', groupselections=['resname LIG'], ref_frame=0).run()
     rmsd_backbone = R.rmsd.T[2]
@@ -1196,13 +1110,12 @@ def calcRMSD():
 
 
 
-def TTMD_graph(time_list, rmsd_backbone, rmsd_ligand):
+def titration_timeline(time_list, rmsd_backbone, rmsd_ligand):
     os.chdir(f'{folder}/MD')
-    #### this function dynamically plots IFPcs and both backbone and ligand RMSD vs simulation time
-    print("\nCombined plot...")
+    #### this function plots IFPcs and both backbone and ligand RMSD vs simulation time
+    print("\nPlotting titration timeline...")
 
     sim_list = getSim()
-    #time_list = getTime()
 
     #create temperature list
     temperature_list = [T_start]
@@ -1246,17 +1159,15 @@ def TTMD_graph(time_list, rmsd_backbone, rmsd_ligand):
     cbar.set_label('Temperature (K)', rotation=270, labelpad=15)
 
     # plot RMSD
-    x1 = time_list[:-1] #MODIFICARE!!
-    #y1 = calcRMSD()[0]
+    x1 = time_list[1:]
     y1 = rmsd_backbone
-    xnew1 = np.linspace(x1[0], x1[-1], 300) 
+    xnew1 = np.linspace(x1[0], x1[-1], smooth) 
     spl1 = make_interp_spline(x1, y1, k=5)
     power_smooth1 = spl1(xnew1)
     axs[1].plot(xnew1, power_smooth1, color='seagreen', label='Backbone')
-    x2 = time_list[:-1]
-    #y2 = calcRMSD()[1]
+    x2 = time_list[1:]
     y2 = rmsd_ligand
-    xnew2 = np.linspace(x2[0], x2[-1], 300) 
+    xnew2 = np.linspace(x2[0], x2[-1], smooth) 
     spl2 = make_interp_spline(x2, y2, k=5)
     power_smooth2 = spl2(xnew2)
     axs[1].plot(xnew2, power_smooth2, color='tomato', label='Ligand')
@@ -1268,14 +1179,14 @@ def TTMD_graph(time_list, rmsd_backbone, rmsd_ligand):
     axs[1].legend()
     axs[1].legend(loc='center left', bbox_to_anchor=(1, 0.5))
     fig.tight_layout()
-    fig.savefig('combined_plot.png', dpi=300)
+    fig.savefig('titration_timeline.png', dpi=300)
 
 
 
-def slope_plot():
+def titration_profile():
     os.chdir(f'{folder}/MD')
-    print("\nThermal titration profile...")
-    #### this function dynamically plots average IFPcs vs temperature
+    print("\nPlotting titration profile...")
+    #### this function plots average IFPcs vs temperature
     done_temperature = []
     for temp in range(temp_set[0][0],temp_set[-1][1]+temp_set[0][2], temp_set[0][2]):
         done_temperature.append(temp)
@@ -1293,7 +1204,7 @@ def slope_plot():
     first_last_score = [-1.0, avg_list[-1]]
     f = np.poly1d(np.polyfit(first_last_T, first_last_score, 1))
     slope, intercept, r_value, p_value, std_err = linregress(first_last_T, first_last_score)
-    axs.plot(temperature_array, f(temperature_array), color='tomato', ls='--', label="slope = {:.5f}".format(slope))
+    axs.plot(temperature_array, f(temperature_array), color='tomato', ls='--', label="MS = {:.5f}".format(slope))
     axs.set_title('Titration Profile')
     axs.set_xlabel('Temperature (K)')
     axs.set_ylabel('Average IFP$_{CS}$')
@@ -1301,8 +1212,6 @@ def slope_plot():
     axs.set_xlim(T_start,T_stop)
     axs.legend()
     fig.savefig('titration_profile.png', dpi=300)
-
-
-
+    
 gpu_info()
 MAIN()
