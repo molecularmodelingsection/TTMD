@@ -20,4 +20,4 @@ of the script**. To run the code:
 2. activate the right conda environment (**conda activate ttmd**)
 3. run the code (**python3 TTMD.py**)
 
-To test the code, an example system is provided in **test** directory.
+To test the code, an example system is provided in the **test** directory.
