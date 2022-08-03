@@ -14,7 +14,7 @@ The current version of the script only supports the **ACEMD3 engine** to run mol
 installed within the provided conda environment.
 
 To run a TTMD simulation on a protein-ligand complex of interest, create a folder containing the TTMD.py script plus the adequately
-prepared protein and ligand structures in the .pdb and mol2 format respectively. **Editable settings can be changed at the beginning
+prepared protein and ligand structures in the .pdb and .mol2 format respectively. **Editable settings can be changed at the beginning
 of the script**. To run the code:
 1. open a terminal within the directory of interest
 2. activate the right conda environment (**conda activate ttmd**)
