@@ -15,6 +15,7 @@ ligand_charge = 0               ### ligand charge (int format)
 
 ### EXTERNAL DEPENDENCIES PATH
 wordom = '/home/mpavan/wordom_0.22-rc3.i386'
+vmd = '/usr/local/bin/vmd'
 
 ### water padding around protein (Å)
 padding = 15
@@ -98,20 +99,20 @@ import os, sys, glob
 from fileinput import filename
 from tabulate import tabulate
 from operator import itemgetter
-import numpy as np #1.20.1
-import pandas as pd #1.2.2
-from matplotlib import pyplot as plt #3.3.4
+import numpy as np
+import pandas as pd
+from matplotlib import pyplot as plt
 import matplotlib.colors as mplcolors
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
-import oddt #0.7 (needs openbabel or rdkit, installed version is openbabel=3.1.1)
+import oddt
 from oddt import fingerprints
-import MDAnalysis as mda #1.0.0
+import MDAnalysis as mda
 import MDAnalysis.transformations as trans
 from MDAnalysis.analysis import align
 from MDAnalysis.analysis import rms
-import sklearn.metrics #0.24.1
+import sklearn.metrics
 from sklearn.metrics import pairwise_distances
-from scipy.interpolate import make_interp_spline, BSpline #1.6.0
+from scipy.interpolate import make_interp_spline, BSpline
 from scipy.stats import linregress
 import multiprocessing
 import tqdm
@@ -294,9 +295,8 @@ def wrap_blocks(*args):
     protein = u.select_atoms('protein')
     not_protein = u.select_atoms('not protein')
     whole = u.select_atoms('all')
-    transforms = [trans.unwrap(whole),
-                    trans.center_in_box(protein, wrap=False),
-                    trans.wrap(whole)]
+    transforms = [trans.center_in_box(protein, wrap=False),
+                  trans.wrap(whole)]
     u.trajectory.add_transformations(*transforms)
     block_name = f'block_{first}_{last}.dcd'
     with mda.Writer(block_name, u.atoms.n_atoms) as W:
@@ -424,7 +424,8 @@ def prepare_system():
     os.chdir(folder)
     print('————————————————————\nSystem preparation\n————————————————————\n')
     with open("complex.in", 'w') as f:
-        f.write(f"""source oldff/leaprc.ff14SB
+        f.write(f"""source leaprc.protein.ff14SB
+source leaprc.water.tip3p
 source leaprc.gaff
 loadamberprep ligand.prepi
 loadamberparams ligand.frcmod
@@ -504,7 +505,7 @@ exit""")
     os.system("antechamber -fi mol2 -i ligand_charged.mol2 -o ligand.prepi -fo prepi -pf y")
     os.system("parmchk2 -i ligand.prepi -f prepi  -o ligand.frcmod")
     os.system("tleap -f complex.in")
-    os.system("vmd -dispdev text -e determine_ions_fixed.vmd > ion.log")
+    os.system(f"{vmd} -dispdev text -e determine_ions_fixed.vmd > ion.log")
 
     with open("ion.log",'r') as f:
         lines = f.readlines()
@@ -520,7 +521,8 @@ exit""")
 
 
     with open("complex.in", 'w') as f:
-        f.write(f"""source oldff/leaprc.ff14SB
+        f.write(f"""source leaprc.protein.ff14SB
+source leaprc.water.tip3p 
 source leaprc.gaff
 loadamberprep ligand.prepi
 loadamberparams ligand.frcmod
@@ -550,7 +552,7 @@ set curr_charge [measure sumweights $all weight charge]
 puts [format "\nCurrent system charge is: %.3f\n" $curr_charge]
 exit""")
 
-    os.system("vmd -dispdev text -e check_charge.vmd > charge.log")
+    os.system(f"{vmd} -dispdev text -e check_charge.vmd > charge.log")
 
     with open("charge.log",'r') as f:
         lines = f.readlines()
@@ -666,7 +668,7 @@ set cell [vecsub $max $min];
 put "celldimension $cell"
 quit""")
 
-    os.system("vmd -dispdev text -e get_celldimension.vmd > celldimension.log")
+    os.system(f"{vmd} -dispdev text -e get_celldimension.vmd > celldimension.log")
 
     with open("celldimension.log",'r') as f:
         lines = f.readlines()
