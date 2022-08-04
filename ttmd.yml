@@ -7,7 +7,7 @@ channels:
 dependencies:
   - _libgcc_mutex=0.1=conda_forge
   - _openmp_mutex=4.5=1_gnu
-  - acemd3=3.3.0=cuda100_0
+  - acemd3=3.5.0=cuda1121_0
   - alabaster=0.7.12=py37_0
   - argcomplete=1.12.3=pyhd3eb1b0_0
   - argon2-cffi=20.1.0=py37h27cfd23_1
@@ -31,6 +31,7 @@ dependencies:
   - cftime=1.4.1=py37h902c9e0_0
   - charset-normalizer=2.0.4=pyhd3eb1b0_0
   - cryptography=3.4.7=py37hd23ed53_0
+  - cudatoolkit=11.2.2=he111cf0_8
   - curl=7.71.1=he644dc0_8
   - cycler=0.10.0=py_2
   - cython=0.29.21=py37hcd2ae1e_2
@@ -45,11 +46,13 @@ dependencies:
   - fontconfig=2.13.1=hba837de_1004
   - freetype=2.10.4=h0708190_1
   - future=0.18.2=py37h89c1867_5
+  - gawk=5.1.0=h7f98852_0
   - gettext=0.19.8.1=h0b5b191_1005
   - glib=2.66.7=h9c3ff4c_0
   - glib-tools=2.66.7=h9c3ff4c_0
   - griddataformats=0.5.0=py_0
   - gsd=2.4.0=py37h902c9e0_0
+  - gsl=2.6=he838d99_2
   - gst-plugins-base=1.14.5=h0935bb2_2
   - gstreamer=1.18.3=h3560a44_0
   - hdf4=4.2.13=h10796ff_1004
@@ -131,6 +134,8 @@ dependencies:
   - numexpr=2.7.3=py37hdc94413_0
   - numpy=1.20.1=py37haa41c4c_0
   - numpydoc=1.1.0=pyhd3eb1b0_1
+  - ocl-icd=2.3.0=h7f98852_0
+  - ocl-icd-system=1.0.0=1
   - oddt=0.7=py_0
   - olefile=0.46=pyh9f0ad1d_1
   - openbabel=3.1.1=py37h200e996_1
@@ -148,6 +153,7 @@ dependencies:
   - pillow=8.1.0=py37h4600e1f_2
   - pip=21.0.1=pyhd8ed1ab_0
   - pixman=0.40.0=h36c2ea0_0
+  - plumed=2.7.2=nompi_he1a1279_0
   - prometheus_client=0.12.0=pyhd3eb1b0_0
   - prompt-toolkit=3.0.20=pyhd3eb1b0_0
   - pthread-stubs=0.4=h36c2ea0_1001
@@ -203,6 +209,7 @@ dependencies:
   - wcwidth=0.2.5=pyhd3eb1b0_0
   - webencodings=0.5.1=py37_1
   - wheel=0.36.2=pyhd3deb0d_0
+  - xdrfile=1.1.4=h7f98852_0
   - xorg-kbproto=1.0.7=h7f98852_1002
   - xorg-libice=1.0.10=h516909a_0
   - xorg-libsm=1.2.3=h84519dc_1000
@@ -228,5 +235,4 @@ dependencies:
     - pdb4amber==1.7.dev0
     - pytraj==2.0.5
     - sander==16.0
-    - ticc==0.1.4
-prefix: /home/mpavan/anaconda3/envs/ttmd_ambertools22
+prefix: /home/mpavan/anaconda3/envs/ttmd

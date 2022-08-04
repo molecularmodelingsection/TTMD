@@ -13,6 +13,9 @@ protein_name = 'protein.pdb'    ### protein filename (.pdb)
 ligand_name = 'ligand.mol2'     ### ligand filename (.mol2)
 ligand_charge = 0               ### ligand charge (int format)
 
+### EXTERNAL DEPENDENCIES PATH
+wordom = '/home/mpavan/wordom_0.22-rc3.i386'
+
 ### water padding around protein (Å)
 padding = 15
 
@@ -34,16 +37,16 @@ def MAIN():
     print(header) 
     #### PREPARATORY STEPS   
     prepare_system()
-#    statistics()
-#    equil()
+    statistics()
+    equil()
     #### TITRATION BLOCK
-#    thermic_titration()
-#    final_merge_trj()
-#    merge_sim()
-#    time_list = getTime()
-#    rmsd_backbone, rmsd_ligand = calcRMSD()
-#    titration_timeline(time_list, rmsd_backbone, rmsd_ligand)
-#    titration_profile()
+    thermic_titration()
+    final_merge_trj()
+    merge_sim()
+    time_list = getTime()
+    rmsd_backbone, rmsd_ligand = calcRMSD()
+    titration_timeline(time_list, rmsd_backbone, rmsd_ligand)
+    titration_profile()
     
 ### LAUNCHING TTMD
 # check temperature set list and computer settings.
@@ -319,7 +322,7 @@ def merge_trj(trj_list, trj_name, remove=bool):
         for trj in trj_list:
             f.write(trj + '\n')
     
-    os.system(f'wordom -itrj merge_trj.txt -otrj {trj_name}')
+    os.system(f'{wordom} -itrj merge_trj.txt -otrj {trj_name}')
     
     if remove == True:
         for trj in trj_list:
@@ -499,7 +502,7 @@ exit""")
 
     os.system(f"antechamber -fi mol2 -i {ligand_name} -o ligand_charged.mol2 -fo mol2 -nc {ligand_charge} -c bcc -pf y -rn LIG")
     os.system("antechamber -fi mol2 -i ligand_charged.mol2 -o ligand.prepi -fo prepi -pf y")
-    os.system("parmchk -i ligand.prepi -f prepi  -o ligand.frcmod")
+    os.system("parmchk2 -i ligand.prepi -f prepi  -o ligand.frcmod")
     os.system("tleap -f complex.in")
     os.system("vmd -dispdev text -e determine_ions_fixed.vmd > ion.log")
 
