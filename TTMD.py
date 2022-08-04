@@ -30,20 +30,17 @@ resume = True       ### if True: resume simulation
                     ### if False: reset folders and restart from system preparation
 
 ### comment MAIN row(s) to skip
-def MAIN():
-    print(header) 
-    #### PREPARATORY STEPS   
+def MAIN(): 
+    ### PREPARATORY STEPS   
     prepare_system()
-#    statistics()
-#    equil()
-    #### TITRATION BLOCK
-#    thermic_titration()
-#    final_merge_trj()
-#    merge_sim()
-#    time_list = getTime()
-#    rmsd_backbone, rmsd_ligand = calcRMSD()
-#    titration_timeline(time_list, rmsd_backbone, rmsd_ligand)
-#    titration_profile()
+    statistics()
+    equil()
+    ### TITRATION BLOCK
+    thermic_titration()
+    final_merge_trj()
+    ### GRAPHS BLOCK
+    titration_timeline()
+    titration_profile()
     
 ### LAUNCHING TTMD
 # check temperature set list and computer settings.
@@ -90,26 +87,25 @@ header = '''
 
 ###############################################################################
 
-
-import os, sys, glob
-from fileinput import filename
+import os
+import sys
+import glob
+import numpy as np
 from tabulate import tabulate
-from operator import itemgetter
-import numpy as np #1.20.1
-import pandas as pd #1.2.2
-from matplotlib import pyplot as plt #3.3.4
-import matplotlib.colors as mplcolors
-from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
-import oddt #0.7 (needs openbabel or rdkit, installed version is openbabel=3.1.1)
+import oddt
 from oddt import fingerprints
-import MDAnalysis as mda #1.0.0
+import MDAnalysis as mda
+import sklearn.metrics
+from sklearn.metrics import pairwise_distances
 import MDAnalysis.transformations as trans
 from MDAnalysis.analysis import align
-from MDAnalysis.analysis import rms
-import sklearn.metrics #0.24.1
-from sklearn.metrics import pairwise_distances
-from scipy.interpolate import make_interp_spline, BSpline #1.6.0
+import pandas as pd
+from matplotlib import pyplot as plt
+import matplotlib.colors as mplcolors
+from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
+from scipy.interpolate import make_interp_spline, BSpline
 from scipy.stats import linregress
+from MDAnalysis.analysis import rms
 import multiprocessing
 import tqdm
 
@@ -152,9 +148,9 @@ def gpu_info():
     
     if resume == True:
     
-        if os.path.exists(f'{folder}/gpu_check.info'):
+        if os.path.exists(f'{folder}/gpu.info'):
 
-            with open(f'{folder}/gpu_check.info', 'r') as i:
+            with open(f'{folder}/gpu.info', 'r') as i:
                 gpu = i.readlines()[0]
             
             current_gpu = gpu_check()
@@ -172,7 +168,7 @@ def gpu_info():
         else:
             resume_check = True
             
-            with open(f'{folder}/gpu_check.info', 'w') as i:
+            with open(f'{folder}/gpu.info', 'w') as i:
                 current_gpu = gpu_check()
                 i.write(current_gpu)
 
@@ -604,7 +600,7 @@ def statistics():
     dictionary.append(entry)
 
     water_volume = 0
-    water_C = 500 / 9
+    water_C = 500 / 9   ### = 55.55555... M
 
     for mol in components:
         if mol == 'resname WAT':
@@ -626,7 +622,7 @@ def statistics():
             n_resids = len(sel.residues)
         n_atoms = sel.n_atoms
         mass = sel.total_mass(compound='group')
-        moles = n_resids / (6.02214076 * (10 ** 23))
+        #moles = n_resids / (6.02214076 * (10 ** 23))
         if mol == 'resname WAT':
             C = water_C
             water_volume += n_resids / water_C
@@ -641,10 +637,10 @@ def statistics():
 
     table = tabulate(df, headers = 'keys', tablefmt = 'psql', showindex=False)
 
-    with open('table.txt', 'w') as t:
+    with open('stats.txt', 'w') as t:
         t.write(f'FORCE FIELD = {forcefield}\n\n')
         t.write('BOX DIMENSIONS [Å]\n')
-        t.write(tabulate(xyz))
+        t.write(xyz_table)
         t.write('\n\n\n')
         t.write(table)
 
@@ -745,7 +741,7 @@ def equil():
             print('——Trajectory incomplete')
             
             if resume_check == True:
-                print('————tResuming equil1')
+                print('————Resuming equil1')
                 equil1('on')
                 
 
@@ -797,8 +793,8 @@ def ref_fingerprint():
         not_protein = ref_u.select_atoms('not protein')
         whole = ref_u.select_atoms('all')
         transforms = [trans.unwrap(whole),
-                        trans.center_in_box(protein, wrap=False),
-                        trans.wrap(not_protein, compound='residues')]
+                    trans.center_in_box(protein, wrap=False),
+                    trans.wrap(whole)]
         ref_u.trajectory.add_transformations(*transforms)
         
         old_rmsd, new_rmsd = align.alignto(ref_u, ref, select='protein and backbone', weights='mass')
@@ -971,6 +967,8 @@ def thermic_titration():
     
     return done_temperature
 
+    merge_sim()
+
 
 
 def final_merge_trj():
@@ -1021,23 +1019,6 @@ def merge_sim():
     return sim_list
 
 
-
-def sim_list():
-    os.chdir(f'{folder}/MD')
-    sim_list = []
-    lines = []
-
-    if not os.path.exists('similarity.dat'):
-        sim_list = merge_sim()
-    else:
-        with open('similarity.dat', 'r') as f:
-            lines = f.readlines()
-
-        for i in lines:
-            sim = i.rstrip('\n')
-            sim_list.append(sim)
-
-    return sim_list
 
 def getSim():
 
@@ -1100,7 +1081,14 @@ def getTime():
 
 
 def calcRMSD():
-    u = mda.Universe(f'{folder}/MD/dry.pdb', f'{folder}/MD/dry.dcd')
+    if dryer == 'yes':
+        topology = 'dry.pdb'
+        trajectory = 'dry.dcd'
+    else:
+        topology = 'solv.pdb'
+        trajectory = 'merged_swag.dcd'
+
+    u = mda.Universe(topology, trajectory)
     R = rms.RMSD(u, u, select='backbone', groupselections=['resname LIG'], ref_frame=0).run()
     rmsd_backbone = R.rmsd.T[2]
     rmsd_ligand = R.rmsd.T[3]
@@ -1108,12 +1096,14 @@ def calcRMSD():
 
 
 
-def titration_timeline(time_list, rmsd_backbone, rmsd_ligand):
+def titration_timeline():
     os.chdir(f'{folder}/MD')
     #### this function plots IFPcs and both backbone and ligand RMSD vs simulation time
     print("\nPlotting titration timeline...")
 
     sim_list = getSim()
+    time_list = getTime()
+    rmsd_list = calcRMSD()
 
     #create temperature list
     temperature_list = [T_start]
@@ -1158,13 +1148,13 @@ def titration_timeline(time_list, rmsd_backbone, rmsd_ligand):
 
     # plot RMSD
     x1 = time_list[1:]
-    y1 = rmsd_backbone
+    y1 = rmsd_list[0]
     xnew1 = np.linspace(x1[0], x1[-1], smooth) 
     spl1 = make_interp_spline(x1, y1, k=5)
     power_smooth1 = spl1(xnew1)
     axs[1].plot(xnew1, power_smooth1, color='seagreen', label='Backbone')
     x2 = time_list[1:]
-    y2 = rmsd_ligand
+    y2 = rmsd_list[1]
     xnew2 = np.linspace(x2[0], x2[-1], smooth) 
     spl2 = make_interp_spline(x2, y2, k=5)
     power_smooth2 = spl2(xnew2)
@@ -1186,15 +1176,25 @@ def titration_profile():
     print("\nPlotting titration profile...")
     #### this function plots average IFPcs vs temperature
     done_temperature = []
-    for temp in range(temp_set[0][0],temp_set[-1][1]+temp_set[0][2], temp_set[0][2]):
-        done_temperature.append(temp)
+    for set in temp_set:
+        t_a = set[0]
+        t_z = set[1]
+        interval = set[2]
+        t_step = set[3]
+        for temperature in range(t_a, t_z + interval, interval):
+            if os.path.exists(f'sim_{temperature}.dat'):
+                done_temperature.append(temperature)
+    
     temperature_array = np.array(done_temperature).astype(int)
+    
     fig, axs = plt.subplots(nrows=1, ncols=1)
+
     avg_list = []
     with open('avg_score', 'r') as avg:
         lines = avg.readlines()
         for line in lines:
             avg_list.append(float(line.rstrip('\n')))
+
     first_last_T = [done_temperature[0], done_temperature[-1]]
     axs.set_xlim(first_last_T)
     axs.set_ylim(-1,0)
@@ -1210,6 +1210,9 @@ def titration_profile():
     axs.set_xlim(T_start,T_stop)
     axs.legend()
     fig.savefig('titration_profile.png', dpi=300)
+
+
     
+print(header)
 gpu_info()
 MAIN()
