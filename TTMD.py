@@ -34,16 +34,16 @@ def MAIN():
     print(header) 
     #### PREPARATORY STEPS   
     prepare_system()
-    statistics()
-    equil()
+#    statistics()
+#    equil()
     #### TITRATION BLOCK
-    thermic_titration()
-    final_merge_trj()
-    merge_sim()
-    time_list = getTime()
-    rmsd_backbone, rmsd_ligand = calcRMSD()
-    titration_timeline(time_list, rmsd_backbone, rmsd_ligand)
-    titration_profile()
+#    thermic_titration()
+#    final_merge_trj()
+#    merge_sim()
+#    time_list = getTime()
+#    rmsd_backbone, rmsd_ligand = calcRMSD()
+#    titration_timeline(time_list, rmsd_backbone, rmsd_ligand)
+#    titration_profile()
     
 ### LAUNCHING TTMD
 # check temperature set list and computer settings.
@@ -152,9 +152,9 @@ def gpu_info():
     
     if resume == True:
     
-        if os.path.exists(f'{folder}/gpu.info'):
+        if os.path.exists(f'{folder}/gpu_check.info'):
 
-            with open(f'{folder}/gpu.info', 'r') as i:
+            with open(f'{folder}/gpu_check.info', 'r') as i:
                 gpu = i.readlines()[0]
             
             current_gpu = gpu_check()
@@ -172,7 +172,7 @@ def gpu_info():
         else:
             resume_check = True
             
-            with open(f'{folder}/gpu.info', 'w') as i:
+            with open(f'{folder}/gpu_check.info', 'w') as i:
                 current_gpu = gpu_check()
                 i.write(current_gpu)
 
