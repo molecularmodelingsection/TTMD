@@ -5,7 +5,11 @@ Reference publication:
 **"Qualitative Estimation of Protein-Ligand Complex Stability through Thermal Titration Molecular Dynamics (TTMD) Simulations."**  
 Pavan M., Menin S., Bassani D., Sturlese M., Moro S. (under peer-review at *Journal of Chemical Information and Modeling*)
 
-This script automatizes the passages needed to execute a TTMD simulation, from the system setup, to the equilibration protocol, the production phase and trajectory analyses. A YAML file is provided in order to reconstitute the right Python virtual environment needed to run the TTMD.py script. The code relies on **two external software dependency**:
+This script automatizes the passages needed to execute a TTMD simulation, from the system setup, to the equilibration protocol, the production phase and trajectory analyses. A YAML file is provided in order to reconstitute the right Python virtual environment needed to run the TTMD.py script. 
+To reconstitute the right Python virtual environment to run the TTMD.py code:
+- conda env create -f ttmd.yml
+
+The code relies on **two external software dependency**:
 - **Visual Molecular Dynamics (VMD)**  
 - **wordom**
 
