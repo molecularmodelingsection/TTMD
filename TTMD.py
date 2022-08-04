@@ -55,7 +55,7 @@ def MAIN():
 
 min_steps  = 500     ### minimization steps with the conjugate gradient algorithm before equil1
 equil1_len = 0.1     ### equil1 duration (ns)
-equil2_len = 0.1     ### equil2 duration (ns)
+equil2_len = 0.5     ### equil2 duration (ns)
 
 timestep = 2         # integration timestep in fs
 dcdfreq = 10000      # frequency at which a trajectory frame is saved
@@ -421,20 +421,18 @@ def prepare_system():
     os.chdir(folder)
     print('————————————————————\nSystem preparation\n————————————————————\n')
     with open("complex.in", 'w') as f:
-        f.write(f"""source leaprc.ff14SB
-#LIGANDO
+        f.write(f"""source oldff/leaprc.ff14SB
 source leaprc.gaff
 loadamberprep ligand.prepi
 loadamberparams ligand.frcmod
-#IONI
-loadoff ions08.lib
+loadoff atomic_ions.lib
 loadamberparams frcmod.ionsjc_tip3p
 PROT = loadpdb {protein_name}
 LIG = loadmol2 ligand_charged.mol2
 COMPL = combine{{PROT LIG}}
-saveAmberParm LIG ligand.prmtop ligand.crd
-saveAmberParm PROT protein.prmtop protein.crd
-saveAmberParm COMPL complex.prmtop complex.crd
+saveAmberParm LIG ligand.prmtop ligand.inpcrd
+saveAmberParm PROT protein.prmtop protein.inpcrd
+saveAmberParm COMPL complex.prmtop complex.inpcrd
 solvatebox COMPL TIP3PBOX {padding}
 savepdb COMPL solv.pdb
 saveamberparm COMPL solv.prmtop solv.inpcrd
@@ -519,18 +517,18 @@ exit""")
 
 
     with open("complex.in", 'w') as f:
-        f.write(f"""source leaprc.ff14SB
+        f.write(f"""source oldff/leaprc.ff14SB
 source leaprc.gaff
 loadamberprep ligand.prepi
 loadamberparams ligand.frcmod
-loadoff ions08.lib
+loadoff atomic_ions.lib
 loadamberparams frcmod.ionsjc_tip3p
 PROT = loadpdb {protein_name}
 LIG = loadmol2 ligand_charged.mol2
 COMPL = combine{{PROT LIG}}
-saveAmberParm LIG ligand.prmtop ligand.crd
-saveAmberParm PROT protein.prmtop protein.crd
-saveAmberParm COMPL complex.prmtop complex.crd
+saveAmberParm LIG ligand.prmtop ligand.inpcrd
+saveAmberParm PROT protein.prmtop protein.inpcrd
+saveAmberParm COMPL complex.prmtop complex.inpcrd
 solvatebox COMPL TIP3PBOX {padding}
 addIonsRand COMPL Na+ {cations} Cl- {anions} 5
 savepdb COMPL solv.pdb
