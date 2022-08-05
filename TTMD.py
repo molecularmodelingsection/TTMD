@@ -1228,7 +1228,7 @@ def titration_profile():
     axs.set_xlabel('Temperature (K)')
     axs.set_ylabel('Average IFP$_{CS}$')
     axs.set_ylim(-1,0)
-    axs.set_xlim(T_start,T_stop)
+    axs.set_xlim(first_last_T)
     axs.legend()
     fig.savefig('titration_profile.png', dpi=300)
 
