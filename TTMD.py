@@ -38,7 +38,6 @@ def MAIN():
     ### PREPARATORY STEPS   
     prepare_system()
     statistics()
-    gpu_info()
     equil()
     ### TITRATION BLOCK
     thermic_titration()
@@ -1235,4 +1234,5 @@ def titration_profile():
 
 
 print(header)
+gpu_info()
 MAIN()
