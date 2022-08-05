@@ -246,7 +246,7 @@ def start_processes(inputs, num_procs, desc):
     ### progress bar is initialized
     
     for i in range(n_procs):
-        p = multiprocessing.Process(target=worker, args=(task_queue, done_queue)).start()
+        multiprocessing.Process(target=worker, args=(task_queue, done_queue)).start()
         ### spawn (n_proc) worker function, that takes queue objects as args
 
     results = []
