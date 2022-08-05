@@ -6,7 +6,7 @@
 temp_set = [[300, 450, 10, 10]] #[t_start, t_end, t_step, step_len]
 
 ### COMPUTER SETTINGS
-device = 0      ### GPU device ID (int format)
+device = 3      ### GPU device ID (int format)
 n_procs = 4     ### cores number for analysis modules (int format)
 
 protein_name = 'protein.pdb'    ### protein filename (.pdb)
@@ -14,8 +14,8 @@ ligand_name = 'ligand.mol2'     ### ligand filename (.mol2)
 ligand_charge = 0               ### ligand charge (int format)
 
 ### EXTERNAL DEPENDENCIES PATH
-wordom = '/home/mpavan/wordom_0.22-rc3.i386'
-vmd = '/usr/local/bin/vmd'
+wordom = '/odex/bin/wordom'
+vmd = '/odex/bin/vmd'
 
 ### water padding around protein (Å)
 padding = 15
@@ -39,6 +39,7 @@ def MAIN():
     #### PREPARATORY STEPS   
     prepare_system()
     statistics()
+    gpu_info()
     equil()
     #### TITRATION BLOCK
     thermic_titration()
@@ -48,7 +49,7 @@ def MAIN():
     rmsd_backbone, rmsd_ligand = calcRMSD()
     titration_timeline(time_list, rmsd_backbone, rmsd_ligand)
     titration_profile()
-    
+
 ### LAUNCHING TTMD
 # check temperature set list and computer settings.
 # starting folder set-up: protein file (.pdb), ligand file (.mol2)
@@ -115,6 +116,7 @@ from sklearn.metrics import pairwise_distances
 from scipy.interpolate import make_interp_spline, BSpline
 from scipy.stats import linregress
 import multiprocessing
+import time
 import tqdm
 
 
@@ -156,9 +158,9 @@ def gpu_info():
     
     if resume == True:
     
-        if os.path.exists(f'{folder}/gpu_check.info'):
+        if os.path.exists(f'{folder}/gpu.info'):
 
-            with open(f'{folder}/gpu_check.info', 'r') as i:
+            with open(f'{folder}/gpu.info', 'r') as i:
                 gpu = i.readlines()[0]
             
             current_gpu = gpu_check()
@@ -176,7 +178,7 @@ def gpu_info():
         else:
             resume_check = True
             
-            with open(f'{folder}/gpu_check.info', 'w') as i:
+            with open(f'{folder}/gpu.info', 'w') as i:
                 current_gpu = gpu_check()
                 i.write(current_gpu)
 
@@ -291,12 +293,13 @@ def wrap_blocks(*args):
     u = mda.Universe(topology, trajectory)
     u.trajectory[first:last]
 
-    ref = mda.Universe(topology) 
+    ref = mda.Universe('solv.pdb') 
     protein = u.select_atoms('protein')
     not_protein = u.select_atoms('not protein')
     whole = u.select_atoms('all')
-    transforms = [trans.center_in_box(protein, wrap=False),
-                  trans.wrap(whole)]
+    transforms = [trans.unwrap(whole),
+                    trans.center_in_box(protein, wrap=False),
+                    trans.wrap(whole, compound='residues')]
     u.trajectory.add_transformations(*transforms)
     block_name = f'block_{first}_{last}.dcd'
     with mda.Writer(block_name, u.atoms.n_atoms) as W:
@@ -609,7 +612,7 @@ def statistics():
     dictionary.append(entry)
 
     water_volume = 0
-    water_C = 500 / 9
+    water_C = 500 / 9   ### = 55.55555... M
 
     for mol in components:
         if mol == 'resname WAT':
@@ -631,7 +634,7 @@ def statistics():
             n_resids = len(sel.residues)
         n_atoms = sel.n_atoms
         mass = sel.total_mass(compound='group')
-        moles = n_resids / (6.02214076 * (10 ** 23))
+        #moles = n_resids / (6.02214076 * (10 ** 23))
         if mol == 'resname WAT':
             C = water_C
             water_volume += n_resids / water_C
@@ -750,7 +753,7 @@ def equil():
             print('——Trajectory incomplete')
             
             if resume_check == True:
-                print('————tResuming equil1')
+                print('————Resuming equil1')
                 equil1('on')
                 
 
@@ -803,7 +806,7 @@ def ref_fingerprint():
         whole = ref_u.select_atoms('all')
         transforms = [trans.unwrap(whole),
                         trans.center_in_box(protein, wrap=False),
-                        trans.wrap(not_protein, compound='residues')]
+                        trans.wrap(whole, compound='residues')]
         ref_u.trajectory.add_transformations(*transforms)
         
         old_rmsd, new_rmsd = align.alignto(ref_u, ref, select='protein and backbone', weights='mass')
@@ -856,6 +859,7 @@ def run_temp(temperature, t_step, restart):
 
 
 
+
 def avg_file(temperature):
     ifp_list = []
     with open(f'sim_{temperature}.dat', 'r') as f:
@@ -904,7 +908,7 @@ def titration(temperature, t_step):
 
         
     trajectory = f'run_{temperature}.dcd'
-    topology = 'solv.pdb'
+    topology = 'solv.prmtop'
     
     wrap_trj = f"swag_{temperature}.dcd"
     
@@ -986,7 +990,6 @@ def final_merge_trj():
         for t in done_temperature:
             trj = f'swag_{t}.dcd'
             trj_list.append(trj)
-            print(trj_list)
         
         merge_trj(trj_list, 'merged_swag.dcd', remove=False)
         os.listdir(os.getcwd())
@@ -1105,7 +1108,14 @@ def getTime():
 
 
 def calcRMSD():
-    u = mda.Universe(f'{folder}/MD/dry.pdb', f'{folder}/MD/dry.dcd')
+    if dryer == 'yes':
+        topology = 'dry.pdb'
+        trajectory = 'dry.dcd'
+    else:
+        topology = 'solv.pdb'
+        trajectory = 'merged_swag.dcd'
+
+    u = mda.Universe(topology, trajectory)
     R = rms.RMSD(u, u, select='backbone', groupselections=['resname LIG'], ref_frame=0).run()
     rmsd_backbone = R.rmsd.T[2]
     rmsd_ligand = R.rmsd.T[3]
@@ -1141,7 +1151,7 @@ def titration_timeline(time_list, rmsd_backbone, rmsd_ligand):
         pad = 0.03
         # [left most position, bottom position, width, height] of color bar.
         cax = fig.add_axes([bbox.x1 + eps, bbox.y0 + pad, width, height])#bbox.height])
-        cbar = fig.colorbar(im, cax=cax)
+        cbar = fig.colorbar(im, cax=cax, ticks=done_temperature)
         return cbar
 
 
@@ -1160,6 +1170,7 @@ def titration_timeline(time_list, rmsd_backbone, rmsd_ligand):
     s = axs[0].scatter(x,y, c=temperature_list, cmap='RdYlBu_r', norm=divnorm)
     cbar = add_colorbar_outside(s, ax=axs[0])
     cbar.set_label('Temperature (K)', rotation=270, labelpad=15)
+    cbar.ax.set_yticklabels(np.array(done_temperature).astype('str'))
 
     # plot RMSD
     x1 = time_list[1:]
@@ -1182,6 +1193,7 @@ def titration_timeline(time_list, rmsd_backbone, rmsd_ligand):
     axs[1].legend()
     axs[1].legend(loc='center left', bbox_to_anchor=(1, 0.5))
     fig.tight_layout()
+    fig.draw_without_rendering() #temporary fix for bug with colorbar label in matplotlb version 3.5.1
     fig.savefig('titration_timeline.png', dpi=300)
 
 
@@ -1216,5 +1228,4 @@ def titration_profile():
     axs.legend()
     fig.savefig('titration_profile.png', dpi=300)
     
-gpu_info()
 MAIN()
