@@ -974,7 +974,7 @@ def thermic_titration():
                 titration(temperature, t_step)
                 with open("avg_score", 'r') as avg:
                     line = avg.readlines()
-                    last_line = line[-1]
+                    last_line = float(line[-1])
                 done_temperature.append(temperature)
 
     merge_sim()
