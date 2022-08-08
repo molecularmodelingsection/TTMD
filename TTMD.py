@@ -6,7 +6,7 @@
 temp_set = [[300, 450, 10, 10]] #[t_start, t_end, t_step, step_len]
 
 ### COMPUTER SETTINGS
-device = 3      ### GPU device ID (int format)
+device = 0      ### GPU device ID (int format)
 n_procs = 4     ### cores number for analysis modules (int format)
 
 protein_name = 'protein.pdb'    ### protein filename (.pdb)
@@ -35,19 +35,14 @@ resume = True       ### if True: resume simulation
 
 ### comment MAIN row(s) to skip
 def MAIN():
-    print(header) 
-    #### PREPARATORY STEPS   
+    ### PREPARATORY STEPS   
     prepare_system()
     statistics()
-    gpu_info()
     equil()
-    #### TITRATION BLOCK
+    ### TITRATION BLOCK
     thermic_titration()
     final_merge_trj()
-    merge_sim()
-    time_list = getTime()
-    rmsd_backbone, rmsd_ligand = calcRMSD()
-    titration_timeline(time_list, rmsd_backbone, rmsd_ligand)
+    titration_timeline()
     titration_profile()
 
 ### LAUNCHING TTMD
@@ -96,10 +91,10 @@ header = '''
 ###############################################################################
 
 
-import os, sys, glob
-from fileinput import filename
+import os
+import sys
+import glob
 from tabulate import tabulate
-from operator import itemgetter
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
@@ -191,6 +186,9 @@ def gpu_info():
                 os.system(f'rm -r {f}')
                 print(f'{f} removed')
 
+        with open(f'{folder}/gpu.info', 'w') as i:
+            i.write(gpu_check().rstrip('/n'))
+
 ###############################################################################
 ### MULTIPROCESSING FUNCTION AND MODULES
 
@@ -224,7 +222,7 @@ def MultiThreading(args, func, num_procs, desc):
     tasks = []
     for index,item in enumerate(args):
         task = (index, (func, item))
-        ### every queue objects become 
+        ### every queue objects become indexable
         tasks.append(task)
     ### step needed to rethrieve correct results order
     results = start_processes(tasks, num_procs, desc)
@@ -426,6 +424,7 @@ def dry_trj(*args):
 def prepare_system():
     os.chdir(folder)
     print('————————————————————\nSystem preparation\n————————————————————\n')
+
     with open("complex.in", 'w') as f:
         f.write(f"""source leaprc.protein.ff14SB
 source leaprc.water.tip3p
@@ -649,7 +648,7 @@ def statistics():
 
     table = tabulate(df, headers = 'keys', tablefmt = 'psql', showindex=False)
 
-    with open('table.txt', 'w') as t:
+    with open('stats.txt', 'w') as t:
         t.write(f'FORCE FIELD = {forcefield}\n\n')
         t.write('BOX DIMENSIONS [Å]\n')
         t.write(tabulate(xyz))
@@ -975,8 +974,10 @@ def thermic_titration():
                 titration(temperature, t_step)
                 with open("avg_score", 'r') as avg:
                     line = avg.readlines()
-                    last_line = line[-1]
+                    last_line = float(line[-1])
                 done_temperature.append(temperature)
+
+    merge_sim()
     
     return done_temperature
 
@@ -1123,12 +1124,14 @@ def calcRMSD():
 
 
 
-def titration_timeline(time_list, rmsd_backbone, rmsd_ligand):
+def titration_timeline():
     os.chdir(f'{folder}/MD')
     #### this function plots IFPcs and both backbone and ligand RMSD vs simulation time
     print("\nPlotting titration timeline...")
 
+    time_list = getTime()
     sim_list = getSim()
+    rmsd_list = calcRMSD()
 
     #create temperature list
     temperature_list = [T_start]
@@ -1174,13 +1177,13 @@ def titration_timeline(time_list, rmsd_backbone, rmsd_ligand):
 
     # plot RMSD
     x1 = time_list[1:]
-    y1 = rmsd_backbone
+    y1 = rmsd_list[0]
     xnew1 = np.linspace(x1[0], x1[-1], smooth) 
     spl1 = make_interp_spline(x1, y1, k=5)
     power_smooth1 = spl1(xnew1)
     axs[1].plot(xnew1, power_smooth1, color='seagreen', label='Backbone')
     x2 = time_list[1:]
-    y2 = rmsd_ligand
+    y2 = rmsd_list[1]
     xnew2 = np.linspace(x2[0], x2[-1], smooth) 
     spl2 = make_interp_spline(x2, y2, k=5)
     power_smooth2 = spl2(xnew2)
@@ -1212,7 +1215,7 @@ def titration_profile():
         lines = avg.readlines()
         for line in lines:
             avg_list.append(float(line.rstrip('\n')))
-    first_last_T = [done_temperature[0], done_temperature[-1]]
+    first_last_T = [T_start, T_stop]
     axs.set_xlim(first_last_T)
     axs.set_ylim(-1,0)
     axs.scatter(temperature_array, avg_list, c='royalblue')
@@ -1224,8 +1227,12 @@ def titration_profile():
     axs.set_xlabel('Temperature (K)')
     axs.set_ylabel('Average IFP$_{CS}$')
     axs.set_ylim(-1,0)
-    axs.set_xlim(T_start,T_stop)
+    axs.set_xlim(first_last_T)
     axs.legend()
     fig.savefig('titration_profile.png', dpi=300)
-    
+
+
+
+print(header)
+gpu_info()
 MAIN()
