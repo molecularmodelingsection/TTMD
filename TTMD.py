@@ -1141,9 +1141,10 @@ def titration_timeline():
         interval = set[2]
         t_step = set[3]
         for temperature in range(t_a, t_z + interval, interval):
-            frames_per_step = int(t_step/conversion_factor)
-            for i in range(frames_per_step):
-                temperature_list.append(temperature)
+            if os.path.exists(f'sim_{temperature}.dat'):
+                frames_per_step = int(t_step/conversion_factor)
+                for i in range(frames_per_step):
+                    temperature_list.append(temperature)
 
     def add_colorbar_outside(im,ax):
         fig = ax.get_figure()
@@ -1205,17 +1206,24 @@ def titration_profile():
     os.chdir(f'{folder}/MD')
     print("\nPlotting titration profile...")
     #### this function plots average IFPcs vs temperature
-    done_temperature = []
-    for temp in range(temp_set[0][0],temp_set[-1][1]+temp_set[0][2], temp_set[0][2]):
-        done_temperature.append(temp)
-    temperature_array = np.array(done_temperature).astype(int)
+    temperature_list = []
+    for set in temp_set:
+        t_a = set[0]
+        t_z = set[1]
+        interval = set[2]
+        t_step = set[3]
+        for temperature in range(t_a, t_z + interval, interval):
+            if os.path.exists(f'sim_{temperature}.dat'):
+                temperature_list.append(temperature)
+
+    temperature_array = np.array(temperature_list).astype(int)
     fig, axs = plt.subplots(nrows=1, ncols=1)
     avg_list = []
     with open('avg_score', 'r') as avg:
         lines = avg.readlines()
         for line in lines:
             avg_list.append(float(line.rstrip('\n')))
-    first_last_T = [T_start, T_stop]
+    first_last_T = [temperature_list[0], temperature_list[-1]]
     axs.set_xlim(first_last_T)
     axs.set_ylim(-1,0)
     axs.scatter(temperature_array, avg_list, c='royalblue')
