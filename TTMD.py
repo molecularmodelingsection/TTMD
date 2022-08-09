@@ -985,8 +985,40 @@ def thermic_titration():
 
 def final_merge_trj():
     os.chdir(f'{folder}/MD')
-    
-    if not os.path.exists('merged_swag.dcd'):
+
+    merge = True
+
+    temperature_list = []
+    total_ns = 0
+    for set in temp_set:
+        t_a = set[0]
+        t_z = set[1]
+        interval = set[2]
+        t_step = set[3]
+        for temperature in range(t_a, t_z + interval, interval):
+            if os.path.exists(f'sim_{temperature}.dat'):
+                temperature_list.append(temperature)
+                total_ns += t_step
+    total_frames = total_ns / conversion_factor
+
+    if dryer == 'yes':
+        if os.path.exists('dry.dcd'):
+
+            check_u = mda.Universe('dry.pdb', 'dry.dcd')
+            check_frames = len(check_u.trajectory)
+            
+            if check_frames == total_frames:
+                merge = False
+                
+    else:
+        if os.path.exists('merged_swag.dcd'):
+            check_u = mda.Universe('solv.prmtop', 'merged_swag.dcd')
+            check_frames = len(check_u.trajectory)
+            
+            if check_frames == total_frames:
+                merge = False
+
+    if merge == True:
         trj_list = []
         for t in done_temperature:
             trj = f'swag_{t}.dcd'
@@ -995,17 +1027,17 @@ def final_merge_trj():
         merge_trj(trj_list, 'merged_swag.dcd', remove=False)
         os.listdir(os.getcwd())
     
-    if dryer == 'yes':
-        blocks = trajectory_blocks('solv.pdb', 'merged_swag.dcd')[0]
-        dryed_blocks = parallelizer.run(blocks, dry_trj, n_procs, 'Drying blocks')
-        merge_trj(dryed_blocks, 'dry.dcd', remove=True)
-        
-        u = mda.Universe('solv.pdb')
-        dry_sel = u.select_atoms("not resname WAT and not resname Na+ and not resname Cl-")
-        with mda.Writer('dry.pdb', dry_sel.n_atoms) as W:
-            W.write(dry_sel)
+        if dryer == 'yes':
+            blocks = trajectory_blocks('solv.pdb', 'merged_swag.dcd')[0]
+            dryed_blocks = parallelizer.run(blocks, dry_trj, n_procs, 'Drying blocks')
+            merge_trj(dryed_blocks, 'dry.dcd', remove=True)
             
-        os.system('rm merged_swag.dcd')
+            u = mda.Universe('solv.pdb')
+            dry_sel = u.select_atoms("not resname WAT and not resname Na+ and not resname Cl-")
+            with mda.Writer('dry.pdb', dry_sel.n_atoms) as W:
+                W.write(dry_sel)
+                
+            os.system('rm merged_swag.dcd')
 
 
 
