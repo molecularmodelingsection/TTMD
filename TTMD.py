@@ -3,19 +3,19 @@
 
 ### TEMPERATURE SET LIST:
 # [[t_a1, t_z1, interval1, step1], [t_a2, t_z2, interval2, step2], [...]] (int format)
-temp_set = [[300, 450, 10, 10]] #[t_start, t_end, t_step, step_len]
+temp_set = [[300, 310, 10, 0.1]] #[t_start, t_end, t_step, step_len]
 
 ### COMPUTER SETTINGS
 device = 0      ### GPU device ID (int format)
-n_procs = 4     ### cores number for analysis modules (int format)
+n_procs = 2     ### cores number for analysis modules (int format)
 
 protein_name = 'protein.pdb'    ### protein filename (.pdb)
 ligand_name = 'ligand.mol2'     ### ligand filename (.mol2)
 ligand_charge = 0               ### ligand charge (int format)
 
 ### EXTERNAL DEPENDENCIES PATH
-wordom = '/odex/bin/wordom'
-vmd = '/odex/bin/vmd'
+wordom = '/usr/bin/wordom'
+vmd = '/usr/local/bin/vmd'
 
 ### water padding around protein (Å)
 padding = 15
@@ -36,9 +36,9 @@ resume = True       ### if True: resume simulation
 ### comment MAIN row(s) to skip
 def MAIN():
     ### PREPARATORY STEPS   
-    prepare_system()
-    statistics()
-    equil()
+    # prepare_system()
+    # statistics()
+    # equil()
     ### TITRATION BLOCK
     thermic_titration()
     final_merge_trj()
@@ -55,7 +55,7 @@ def MAIN():
 
 min_steps  = 500     ### minimization steps with the conjugate gradient algorithm before equil1
 equil1_len = 0.1     ### equil1 duration (ns)
-equil2_len = 0.5     ### equil2 duration (ns)
+equil2_len = 0.1     ### equil2 duration (ns)
 
 timestep = 2         # integration timestep in fs
 dcdfreq = 10000      # frequency at which a trajectory frame is saved
@@ -113,6 +113,7 @@ from scipy.stats import linregress
 import multiprocessing
 import time
 import tqdm
+
 
 
 np.set_printoptions(threshold=sys.maxsize)
@@ -230,36 +231,44 @@ def MultiThreading(args, func, num_procs, desc):
 
 
 
-def start_processes(inputs, num_procs, desc):
-    ### this function effectively start multiprocess
-    task_queue = multiprocessing.Queue()
-    done_queue = multiprocessing.Queue()
-    ### queue objects to manage to do args and results
+def protect_process(func, args):
+    result = func(*args)
+    return result
 
-    for item in inputs:
-        ### inputs = [(index, (function_name, arg)), ...]
-        task_queue.put(item)
-        ### every item is passed to the task_queue
 
-    pbar = tqdm.tqdm(total=len(inputs), desc=desc)
-    ### progress bar is initialized
-    
-    for i in range(n_procs):
-        multiprocessing.Process(target=worker, args=(task_queue, done_queue)).start()
-        ### spawn (n_proc) worker function, that takes queue objects as args
+if __name__ == '__main__':
+    multiprocessing.set_start_method("fork")
+    def start_processes(inputs, num_procs, desc):
+        ### this function effectively start multiprocess
+        task_queue = multiprocessing.Queue()
+        done_queue = multiprocessing.Queue()
+        ### queue objects to manage to do args and results
 
-    results = []
-    for i in range(len(inputs)):
-        results.append(done_queue.get())
-        pbar.update(1)
-        ### done_queue and progress bar update for each done object
+        for item in inputs:
+            ### inputs = [(index, (function_name, arg)), ...]
+            task_queue.put(item)
+            ### every item is passed to the task_queue
 
-    for i in range(num_procs):
-        task_queue.put("STOP")
-        ### to exit from each spawned process when task queue is empty
+        pbar = tqdm.tqdm(total=len(inputs), desc=desc)
+        ### progress bar is initialized
+        
+        if __name__ == '__main__':
+            for i in range(n_procs):
+                multiprocessing.Process(target=worker, args=(task_queue, done_queue)).start()
+                ### spawn (n_proc) worker function, that takes queue objects as args
 
-    results.sort(key=lambda tup: tup[0])    ### sorting of args[a] - args[z] results
-    return [item[1] for item in map(list, results)] ### return a list with sorted results
+        results = []
+        for i in range(len(inputs)):
+            results.append(done_queue.get())
+            pbar.update(1)
+            ### done_queue and progress bar update for each done object
+
+        for i in range(num_procs):
+            task_queue.put("STOP")
+            ### to exit from each spawned process when task queue is empty
+
+        results.sort(key=lambda tup: tup[0])    ### sorting of args[a] - args[z] results
+        return [item[1] for item in map(list, results)] ### return a list with sorted results
 
 
 
@@ -270,7 +279,7 @@ def worker(input, output):
         ### job = function name, args for function
 
         func, args = job
-        result = func(*args)
+        result = protect_process(func, args)
         ### function is executed and return a result value
 
         ret_val = (seq, result)
@@ -294,11 +303,18 @@ def wrap_blocks(*args):
     ref = mda.Universe('solv.pdb') 
     protein = u.select_atoms('protein')
     not_protein = u.select_atoms('not protein')
-    whole = u.select_atoms('all')
-    transforms = [trans.unwrap(whole),
-                    trans.center_in_box(protein, wrap=False),
-                    trans.wrap(whole, compound='residues')]
+    transforms = [trans.unwrap(u.atoms),
+                trans.center_in_box(protein, center='geometry'),
+                trans.wrap(not_protein, compound='residues')]
+
     u.trajectory.add_transformations(*transforms)
+
+    # not_protein = u.select_atoms('not protein')
+    # transforms = [trans.unwrap(u.atoms),
+    #         trans.center_in_box(protein, wrap=True),
+    #         trans.wrap(not_protein)]
+    # u.trajectory.add_transformations(*transforms)
+
     block_name = f'block_{first}_{last}.dcd'
     with mda.Writer(block_name, u.atoms.n_atoms) as W:
         for ts in u.trajectory[first:last]:
@@ -318,18 +334,16 @@ def trajectory_blocks(topology, trajectory):
 
 
 
-def merge_trj(trj_list, trj_name, remove=bool):
-    with open('merge_trj.txt', 'w') as f:
-        for trj in trj_list:
-            f.write(trj + '\n')
-    
-    os.system(f'{wordom} -itrj merge_trj.txt -otrj {trj_name}')
+def merge_trj(topology, trj_list, trj_name, remove=bool):
+    u = mda.Universe(topology, trj_list)
+
+    with mda.Writer(trj_name, u.atoms.n_atoms) as W:
+        for ts in u.trajectory:
+            W.write(u.atoms)
     
     if remove == True:
         for trj in trj_list:
             os.system(f'rm {trj}')
-
-    os.system('rm merge_trj.txt')
 
 
 
@@ -802,10 +816,10 @@ def ref_fingerprint():
         ref = mda.Universe('solv.pdb') 
         protein = ref_u.select_atoms('protein')
         not_protein = ref_u.select_atoms('not protein')
-        whole = ref_u.select_atoms('all')
-        transforms = [trans.unwrap(whole),
-                        trans.center_in_box(protein, wrap=False),
-                        trans.wrap(whole, compound='residues')]
+        transforms = [trans.unwrap(ref_u.atoms),
+                    trans.center_in_box(protein, center='geometry'),
+                    trans.wrap(not_protein, compound='residues')]
+
         ref_u.trajectory.add_transformations(*transforms)
         
         old_rmsd, new_rmsd = align.alignto(ref_u, ref, select='protein and backbone', weights='mass')
@@ -887,7 +901,7 @@ def titration(temperature, t_step):
         print(f'——run_{temperature}.dcd found')
         print('————Checking trajectory integrity')
 
-        check_u = mda.Universe('solv.prmtop', f'run_{temperature}.dcd')
+        check_u = mda.Universe('solv.pdb', f'run_{temperature}.dcd')
         check_frames = len(check_u.trajectory)
         run_frame = t_step / conversion_factor
 
@@ -915,11 +929,12 @@ def titration(temperature, t_step):
         print(f'——swag_{temperature}.dcd doesn\'t exists')
         blocks = trajectory_blocks(topology, trajectory)[0]
         wrapped_blocks = parallelizer.run(blocks, wrap_blocks, n_procs, 'Wrapping blocks')
-        merge_trj(wrapped_blocks, wrap_trj, remove=True)
+        print(wrapped_blocks)
+        merge_trj(topology, wrapped_blocks, wrap_trj, remove=True)
 
     else:
         print(f'——swag_{temperature}.dcd found')
-        check_u = mda.Universe('solv.prmtop', f'swag_{temperature}.dcd')
+        check_u = mda.Universe('solv.pdb', f'swag_{temperature}.dcd')
         check_frames = len(check_u.trajectory)
         swag_frame = t_step / conversion_factor
 
@@ -930,7 +945,7 @@ def titration(temperature, t_step):
             print('————Wrapped trj lenght mismatch\nRewrapping')
             blocks = trajectory_blocks(topology, trajectory)[0]
             wrapped_blocks = parallelizer.run(blocks, wrap_blocks, n_procs, 'Wrapping blocks')
-            merge_trj(wrapped_blocks, wrap_trj, remove=True)
+            merge_trj(topology, wrapped_blocks, wrap_trj, remove=True)
 
 
 
@@ -985,59 +1000,31 @@ def thermic_titration():
 
 def final_merge_trj():
     os.chdir(f'{folder}/MD')
-
-    merge = True
-
-    temperature_list = []
-    total_ns = 0
-    for set in temp_set:
-        t_a = set[0]
-        t_z = set[1]
-        interval = set[2]
-        t_step = set[3]
-        for temperature in range(t_a, t_z + interval, interval):
-            if os.path.exists(f'sim_{temperature}.dat'):
-                temperature_list.append(temperature)
-                total_ns += t_step
-    total_frames = total_ns / conversion_factor
-
-    if dryer == 'yes':
-        if os.path.exists('dry.dcd'):
-
-            check_u = mda.Universe('dry.pdb', 'dry.dcd')
-            check_frames = len(check_u.trajectory)
-            
-            if check_frames == total_frames:
-                merge = False
-                
-    else:
-        if os.path.exists('merged_swag.dcd'):
-            check_u = mda.Universe('solv.prmtop', 'merged_swag.dcd')
-            check_frames = len(check_u.trajectory)
-            
-            if check_frames == total_frames:
-                merge = False
-
-    if merge == True:
+    
+    if not os.path.exists('merged_swag.dcd'):
+        topology = 'solv.prmtop'
         trj_list = []
         for t in done_temperature:
             trj = f'swag_{t}.dcd'
             trj_list.append(trj)
         
-        merge_trj(trj_list, 'merged_swag.dcd', remove=False)
+        merge_trj(topology, trj_list, 'merged_swag.dcd', remove=False)
         os.listdir(os.getcwd())
     
-        if dryer == 'yes':
-            blocks = trajectory_blocks('solv.pdb', 'merged_swag.dcd')[0]
-            dryed_blocks = parallelizer.run(blocks, dry_trj, n_procs, 'Drying blocks')
-            merge_trj(dryed_blocks, 'dry.dcd', remove=True)
+    if dryer == 'yes':
+        topology = 'dry.pdb'
+        u = mda.Universe('solv.pdb')
+        dry_sel = u.select_atoms("not resname WAT and not resname Na+ and not resname Cl-")
+        with mda.Writer('dry.pdb', dry_sel.n_atoms) as W:
+            W.write(dry_sel)
+        
+        blocks = trajectory_blocks('solv.pdb', 'merged_swag.dcd')[0]
+        dryed_blocks = parallelizer.run(blocks, dry_trj, n_procs, 'Drying blocks')
+        merge_trj(topology, dryed_blocks, 'dry.dcd', remove=True)
+        
+        
             
-            u = mda.Universe('solv.pdb')
-            dry_sel = u.select_atoms("not resname WAT and not resname Na+ and not resname Cl-")
-            with mda.Writer('dry.pdb', dry_sel.n_atoms) as W:
-                W.write(dry_sel)
-                
-            os.system('rm merged_swag.dcd')
+        os.system('rm merged_swag.dcd')
 
 
 
