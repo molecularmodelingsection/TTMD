@@ -14,7 +14,7 @@ ligand_name = 'ligand.mol2'     ### ligand filename (.mol2)
 ligand_charge = 0               ### ligand charge (int format)
 
 ### EXTERNAL DEPENDENCIES PATH
-vmd = '/usr/local/bin/vmd'
+vmd = '/odex/bin/vmd'
 
 ### water padding around protein (Å)
 padding = 15
