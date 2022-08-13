@@ -3,18 +3,17 @@
 
 ### TEMPERATURE SET LIST:
 # [[t_a1, t_z1, interval1, step1], [t_a2, t_z2, interval2, step2], [...]] (int format)
-temp_set = [[300, 310, 10, 0.1]] #[t_start, t_end, t_step, step_len]
+temp_set = [[300, 450, 10, 10]] #[t_start, t_end, t_step, step_len]
 
 ### COMPUTER SETTINGS
 device = 0      ### GPU device ID (int format)
-n_procs = 2     ### cores number for analysis modules (int format)
+n_procs = 4     ### cores number for analysis modules (int format)
 
 protein_name = 'protein.pdb'    ### protein filename (.pdb)
 ligand_name = 'ligand.mol2'     ### ligand filename (.mol2)
 ligand_charge = 0               ### ligand charge (int format)
 
 ### EXTERNAL DEPENDENCIES PATH
-wordom = '/usr/bin/wordom'
 vmd = '/usr/local/bin/vmd'
 
 ### water padding around protein (Å)
@@ -36,9 +35,9 @@ resume = True       ### if True: resume simulation
 ### comment MAIN row(s) to skip
 def MAIN():
     ### PREPARATORY STEPS   
-    # prepare_system()
-    # statistics()
-    # equil()
+    prepare_system()
+    statistics()
+    equil()
     ### TITRATION BLOCK
     thermic_titration()
     final_merge_trj()
@@ -55,7 +54,7 @@ def MAIN():
 
 min_steps  = 500     ### minimization steps with the conjugate gradient algorithm before equil1
 equil1_len = 0.1     ### equil1 duration (ns)
-equil2_len = 0.1     ### equil2 duration (ns)
+equil2_len = 0.5     ### equil2 duration (ns)
 
 timestep = 2         # integration timestep in fs
 dcdfreq = 10000      # frequency at which a trajectory frame is saved
@@ -308,12 +307,6 @@ def wrap_blocks(*args):
                 trans.wrap(not_protein, compound='residues')]
 
     u.trajectory.add_transformations(*transforms)
-
-    # not_protein = u.select_atoms('not protein')
-    # transforms = [trans.unwrap(u.atoms),
-    #         trans.center_in_box(protein, wrap=True),
-    #         trans.wrap(not_protein)]
-    # u.trajectory.add_transformations(*transforms)
 
     block_name = f'block_{first}_{last}.dcd'
     with mda.Writer(block_name, u.atoms.n_atoms) as W:
