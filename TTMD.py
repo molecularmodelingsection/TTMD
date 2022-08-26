@@ -18,6 +18,8 @@ vmd = '/odex/bin/vmd'
 
 ### water padding around protein (Å)
 padding = 15
+### option to make box cubic
+iso = ''
 
 dryer = 'yes'       ### if 'yes': dry final merged trj (output without water and ions)
                         # N.B. a dryed trj needs less disk space,
@@ -446,7 +448,7 @@ COMPL = combine{{PROT LIG}}
 saveAmberParm LIG ligand.prmtop ligand.inpcrd
 saveAmberParm PROT protein.prmtop protein.inpcrd
 saveAmberParm COMPL complex.prmtop complex.inpcrd
-solvatebox COMPL TIP3PBOX {padding}
+solvatebox COMPL TIP3PBOX {padding} {iso}
 savepdb COMPL solv.pdb
 saveamberparm COMPL solv.prmtop solv.inpcrd
 quit
@@ -543,7 +545,7 @@ COMPL = combine{{PROT LIG}}
 saveAmberParm LIG ligand.prmtop ligand.inpcrd
 saveAmberParm PROT protein.prmtop protein.inpcrd
 saveAmberParm COMPL complex.prmtop complex.inpcrd
-solvatebox COMPL TIP3PBOX {padding}
+solvatebox COMPL TIP3PBOX {padding} {iso}
 addIonsRand COMPL Na+ {cations} Cl- {anions} 5
 savepdb COMPL solv.pdb
 saveamberparm COMPL solv.prmtop solv.inpcrd
@@ -562,6 +564,9 @@ puts [format "\nCurrent system charge is: %.3f\n" $curr_charge]
 exit""")
 
     os.system(f"{vmd} -dispdev text -e check_charge.vmd > charge.log")
+    
+    #solves the issue of atom and residue indexing for large system that exceed the limits for the pdb file format
+    os.system('ambpdb -p solv.prmtop < solv.inpcrd > solv.pdb')
 
     with open("charge.log",'r') as f:
         lines = f.readlines()
