@@ -9,9 +9,8 @@ This script automatizes the passages needed to execute a TTMD simulation, from t
 To reconstitute the right Python virtual environment to run the TTMD.py code:
 - conda env create -f ttmd.yml
 
-The code relies on **two external software dependency**:
+The code relies on **external software dependency**:
 - **Visual Molecular Dynamics (VMD)**  
-- **wordom**
 
 System setup and parameterization for molecular dynamics is carried out by AmberTools22, which are installed within the provided conda environment. The current version of the script only supports the **ACEMD3 engine** to run molecular dynamics simulations. As for AmberTools22, ACEMD3 is also already installed within the provided conda environment. 
 
