@@ -48,6 +48,8 @@ def MAIN():
 # check temperature set list and computer settings.
 # starting folder set-up: protein file (.pdb), ligand file (.mol2)
 # launch: 'python3 TTMD_file.py'
+  # if launched with nohup: in case of need, kill all child processes
+  # executing kill.py script, created after starting main program
 # N.B. this script works with python3
 
 ###############################################################################
