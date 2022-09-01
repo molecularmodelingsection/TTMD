@@ -6,7 +6,7 @@
 temp_set = [[300, 450, 10, 10]] #[t_start, t_end, t_step, step_len]
 
 ### COMPUTER SETTINGS
-device = 0      ### GPU device ID (int format)
+device = 2     ### GPU device ID (int format)
 n_procs = 4     ### cores number for analysis modules (int format)
 
 protein_name = 'protein.pdb'    ### protein filename (.pdb)
@@ -18,8 +18,6 @@ vmd = '/odex/bin/vmd'
 
 ### water padding around protein (Å)
 padding = 15
-### option to make box cubic
-iso = ''
 
 dryer = 'yes'       ### if 'yes': dry final merged trj (output without water and ions)
                         # N.B. a dryed trj needs less disk space,
@@ -37,9 +35,9 @@ resume = True       ### if True: resume simulation
 ### comment MAIN row(s) to skip
 def MAIN():
     ### PREPARATORY STEPS   
-    prepare_system()
-    statistics()
-    equil()
+    # prepare_system()
+    # statistics()
+    # equil()
     ### TITRATION BLOCK
     thermic_titration()
     final_merge_trj()
@@ -93,6 +91,7 @@ header = '''
 
 
 import os
+import re
 import sys
 import glob
 from tabulate import tabulate
@@ -112,7 +111,6 @@ from sklearn.metrics import pairwise_distances
 from scipy.interpolate import make_interp_spline, BSpline
 from scipy.stats import linregress
 import multiprocessing
-import time
 import tqdm
 
 
@@ -126,7 +124,7 @@ folder = os.getcwd()
 
 done_temperature = []
 
-ref_fp = object
+ref_fp = ''
 
 T_start = temp_set[0][0]
 T_stop = temp_set[-1][1]
@@ -192,6 +190,29 @@ def gpu_info():
             i.write(gpu_check().rstrip('/n'))
 
 ###############################################################################
+
+def pid():
+    main_pid = os.getpid()
+    with open('main_pid.log', 'w') as p:
+        p.write(str(main_pid))
+
+    with open('kill.py', 'w') as kill:
+        kill.write(f'''
+import os
+
+with open('main_pid.log', 'r') as main:
+    main_pid = int(main.readlines()[0])
+
+os.system(f'pgrep -g {{main_pid}}> pid.log')
+
+with open('pid.log', 'r') as log:
+    lines = log.readlines()
+    for line in lines:
+        pid = int(line.rstrip('\\n'))
+        os.system(f'kill {{pid}}')
+''')
+
+###############################################################################
 ### MULTIPROCESSING FUNCTION AND MODULES
 
 class parallelizer(object):
@@ -238,7 +259,8 @@ def protect_process(func, args):
 
 
 if __name__ == '__main__':
-    multiprocessing.set_start_method("fork")
+    multiprocessing.set_start_method("spawn")
+
     def start_processes(inputs, num_procs, desc):
         ### this function effectively start multiprocess
         task_queue = multiprocessing.Queue()
@@ -293,6 +315,7 @@ def worker(input, output):
 ### MULTIPROCESSING FUNCTIONS
 
 def wrap_blocks(*args):
+
     first = list(args[0])[0]
     last = list(args[1])[0]
     topology = list(args[2])[0]
@@ -304,7 +327,12 @@ def wrap_blocks(*args):
     ref = mda.Universe('solv.pdb') 
     protein = u.select_atoms('protein')
     not_protein = u.select_atoms('not protein')
+    whole = u.select_atoms('all')
+    ligand = u.select_atoms('resname LIG')
     transforms = [trans.unwrap(u.atoms),
+                trans.center_in_box(ligand, center='geometry'),
+                trans.wrap(u.atoms, compound='residues'),
+                trans.unwrap(u.atoms),
                 trans.center_in_box(protein, center='geometry'),
                 trans.wrap(not_protein, compound='residues')]
 
@@ -368,6 +396,8 @@ def write_frame(*args):
 
 
 def ifp(*args):
+    ref_fp = list(args)[2]
+
     protein_file = list(args)[0]
     protein = next(oddt.toolkit.readfile('pdb', protein_file))
     protein.protein = True
@@ -376,8 +406,8 @@ def ifp(*args):
     ligand = next(oddt.toolkit.readfile('pdb', ligand_file))
     
     fp = fingerprints.InteractionFingerprint(ligand, protein)
-
     l_plif_temp=[]
+
     l_plif_temp.append(ref_fp)
     l_plif_temp.append(fp)
     matrix = np.stack(l_plif_temp, axis=0)
@@ -392,6 +422,7 @@ def ifp(*args):
 
 
 def calculate_ifp(topology, trajectory, temperature):
+    global ref_fp
     u = mda.Universe(topology, trajectory)
     ts_list = []
     for ts in u.trajectory:
@@ -401,7 +432,16 @@ def calculate_ifp(topology, trajectory, temperature):
         os.mkdir("frame_PDBs")
 
     pdb_list = parallelizer.run(ts_list, write_frame, n_procs, 'Writing PDBs')
-    ifp_list = parallelizer.run(pdb_list, ifp, n_procs, 'Calculating fingerprints')
+
+    calc_ifp = []
+    for i in pdb_list:
+        el = []
+        for x in i:
+            el.append(x)
+        el.append(ref_fp)
+        calc_ifp.append(tuple(el))
+            
+    ifp_list = parallelizer.run(calc_ifp, ifp, n_procs, 'Calculating fingerprints')
     
     with open(f'sim_{temperature}.dat', 'w') as sim:
         for x in ifp_list:
@@ -448,7 +488,7 @@ COMPL = combine{{PROT LIG}}
 saveAmberParm LIG ligand.prmtop ligand.inpcrd
 saveAmberParm PROT protein.prmtop protein.inpcrd
 saveAmberParm COMPL complex.prmtop complex.inpcrd
-solvatebox COMPL TIP3PBOX {padding} {iso}
+solvatebox COMPL TIP3PBOX {padding} iso
 savepdb COMPL solv.pdb
 saveamberparm COMPL solv.prmtop solv.inpcrd
 quit
@@ -545,7 +585,7 @@ COMPL = combine{{PROT LIG}}
 saveAmberParm LIG ligand.prmtop ligand.inpcrd
 saveAmberParm PROT protein.prmtop protein.inpcrd
 saveAmberParm COMPL complex.prmtop complex.inpcrd
-solvatebox COMPL TIP3PBOX {padding} {iso}
+solvatebox COMPL TIP3PBOX {padding} iso
 addIonsRand COMPL Na+ {cations} Cl- {anions} 5
 savepdb COMPL solv.pdb
 saveamberparm COMPL solv.prmtop solv.inpcrd
@@ -564,9 +604,6 @@ puts [format "\nCurrent system charge is: %.3f\n" $curr_charge]
 exit""")
 
     os.system(f"{vmd} -dispdev text -e check_charge.vmd > charge.log")
-    
-    #solves the issue of atom and residue indexing for large system that exceed the limits for the pdb file format
-    os.system('ambpdb -p solv.prmtop < solv.inpcrd > solv.pdb')
 
     with open("charge.log",'r') as f:
         lines = f.readlines()
@@ -806,17 +843,20 @@ def equil():
 
 
 def ref_fingerprint():
-    global ref_fp
     if not os.path.exists(f'{folder}/MD/reference_ligand.pdb'):
-        os.chdir(f"{folder}/equil2")
-        ref_u = mda.Universe('solv.prmtop', 'equil2.dcd')
+        ref_u = mda.Universe(f'{folder}/equil2/solv.prmtop', f'{folder}/equil2/equil2.dcd')
 
-        ref = mda.Universe('solv.pdb') 
+        ref = mda.Universe(f'{folder}/equil2/solv.pdb') 
         protein = ref_u.select_atoms('protein')
         not_protein = ref_u.select_atoms('not protein')
+        whole = ref_u.select_atoms('all')
+        ligand = ref_u.select_atoms('resname LIG')
         transforms = [trans.unwrap(ref_u.atoms),
-                    trans.center_in_box(protein, center='geometry'),
-                    trans.wrap(not_protein, compound='residues')]
+            trans.center_in_box(ligand, center='geometry'),
+            trans.wrap(ref_u.atoms, compound='residues'),
+            trans.unwrap(ref_u.atoms),
+            trans.center_in_box(protein, center='geometry'),
+            trans.wrap(not_protein, compound='residues')]
 
         ref_u.trajectory.add_transformations(*transforms)
         
@@ -824,21 +864,20 @@ def ref_fingerprint():
         
         ref_u.trajectory[-1]
         ref_u_ligand = ref_u.select_atoms('resname LIG')
-        with mda.Writer('../MD/reference_ligand.pdb', ref_u_ligand.n_atoms) as W:
+        with mda.Writer(f'{folder}/MD/reference_ligand.pdb', ref_u_ligand.n_atoms) as W:
             W.write(ref_u_ligand)
 
         ref_u_protein = ref_u.select_atoms('protein')
-        with mda.Writer('../MD/reference_protein.pdb', ref_u_protein.n_atoms) as W:
+        with mda.Writer(f'{folder}/MD/reference_protein.pdb', ref_u_protein.n_atoms) as W:
             W.write(ref_u_protein)
     
-    os.chdir(f"{folder}/MD")
-    protein = next(oddt.toolkit.readfile('pdb', 'reference_protein.pdb'))
+    protein = next(oddt.toolkit.readfile('pdb', f'{folder}/MD/reference_protein.pdb'))
     protein.protein = True
-    ligand = next(oddt.toolkit.readfile('pdb', 'reference_ligand.pdb'))
+    ligand = next(oddt.toolkit.readfile('pdb', f'{folder}/MD/reference_ligand.pdb'))
     
     ref_fp = fingerprints.InteractionFingerprint(ligand, protein)
 
-    os.chdir(f"{folder}/MD")
+    return ref_fp
 
 
 
@@ -927,7 +966,6 @@ def titration(temperature, t_step):
         print(f'——swag_{temperature}.dcd doesn\'t exists')
         blocks = trajectory_blocks(topology, trajectory)[0]
         wrapped_blocks = parallelizer.run(blocks, wrap_blocks, n_procs, 'Wrapping blocks')
-        print(wrapped_blocks)
         merge_trj(topology, wrapped_blocks, wrap_trj, remove=True)
 
     else:
@@ -946,7 +984,7 @@ def titration(temperature, t_step):
             merge_trj(topology, wrapped_blocks, wrap_trj, remove=True)
 
 
-
+    global ref_fp
     if not os.path.exists(f'sim_{temperature}.dat'):
         print(f'——sim_{temperature}.dat doesn\'t exists')
         calculate_ifp(topology, wrap_trj, temperature)
@@ -968,7 +1006,8 @@ def thermic_titration():
     os.system(f"cp ../equil2/output.vel {folder}/MD/output.vel")
     os.system(f"cp ../equil2/output.xsc {folder}/MD/output.xsc")
 
-    ref_fingerprint()
+    global ref_fp
+    ref_fp = ref_fingerprint()
 
     with open("avg_score", 'w') as avg:
         avg.write('')
@@ -1257,7 +1296,8 @@ def titration_profile():
     fig.savefig('titration_profile.png', dpi=300)
 
 
-
-print(header)
-gpu_info()
-MAIN()
+if __name__ == '__main__':
+    print(header)
+    pid()
+    gpu_info()
+    MAIN()
