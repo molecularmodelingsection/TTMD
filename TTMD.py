@@ -35,9 +35,9 @@ resume = True       ### if True: resume simulation
 ### comment MAIN row(s) to skip
 def MAIN():
     ### PREPARATORY STEPS   
-    # prepare_system()
-    # statistics()
-    # equil()
+    prepare_system()
+    statistics()
+    equil()
     ### TITRATION BLOCK
     thermic_titration()
     final_merge_trj()
