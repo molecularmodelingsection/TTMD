@@ -3,10 +3,10 @@
 
 ### TEMPERATURE SET LIST:
 # [[t_a1, t_z1, interval1, step1], [t_a2, t_z2, interval2, step2], [...]] (int format)
-temp_set = [[300, 450, 10, 10]] #[t_start, t_end, t_step, step_len]
+temp_set = [[430, 450, 10, 10]] #[t_start, t_end, t_step, step_len]
 
 ### COMPUTER SETTINGS
-device = 2     ### GPU device ID (int format)
+device = 0     ### GPU device ID (int format)
 n_procs = 4     ### cores number for analysis modules (int format)
 
 protein_name = 'protein.pdb'    ### protein filename (.pdb)
@@ -17,7 +17,9 @@ ligand_charge = 0               ### ligand charge (int format)
 vmd = '/odex/bin/vmd'
 
 ### water padding around protein (Å)
-padding = 15
+padding = 20
+### make water box cubic
+iso = 'iso'
 
 dryer = 'yes'       ### if 'yes': dry final merged trj (output without water and ions)
                         # N.B. a dryed trj needs less disk space,
@@ -331,10 +333,13 @@ def wrap_blocks(*args):
     not_protein = u.select_atoms('not protein')
     whole = u.select_atoms('all')
     ligand = u.select_atoms('resname LIG')
+#    transforms = [trans.unwrap(u.atoms),
+#                trans.center_in_box(ligand, center='geometry'),
+#                trans.wrap(u.atoms, compound='residues'),
+#                trans.unwrap(u.atoms),
+#                trans.center_in_box(protein, center='geometry'),
+#                trans.wrap(not_protein, compound='residues')]
     transforms = [trans.unwrap(u.atoms),
-                trans.center_in_box(ligand, center='geometry'),
-                trans.wrap(u.atoms, compound='residues'),
-                trans.unwrap(u.atoms),
                 trans.center_in_box(protein, center='geometry'),
                 trans.wrap(not_protein, compound='residues')]
 
@@ -490,7 +495,7 @@ COMPL = combine{{PROT LIG}}
 saveAmberParm LIG ligand.prmtop ligand.inpcrd
 saveAmberParm PROT protein.prmtop protein.inpcrd
 saveAmberParm COMPL complex.prmtop complex.inpcrd
-solvatebox COMPL TIP3PBOX {padding} iso
+solvatebox COMPL TIP3PBOX {padding} {iso}
 savepdb COMPL solv.pdb
 saveamberparm COMPL solv.prmtop solv.inpcrd
 quit
@@ -587,7 +592,7 @@ COMPL = combine{{PROT LIG}}
 saveAmberParm LIG ligand.prmtop ligand.inpcrd
 saveAmberParm PROT protein.prmtop protein.inpcrd
 saveAmberParm COMPL complex.prmtop complex.inpcrd
-solvatebox COMPL TIP3PBOX {padding} iso
+solvatebox COMPL TIP3PBOX {padding} {iso}
 addIonsRand COMPL Na+ {cations} Cl- {anions} 5
 savepdb COMPL solv.pdb
 saveamberparm COMPL solv.prmtop solv.inpcrd
@@ -872,6 +877,11 @@ def ref_fingerprint():
         ref_u_protein = ref_u.select_atoms('protein')
         with mda.Writer(f'{folder}/MD/reference_protein.pdb', ref_u_protein.n_atoms) as W:
             W.write(ref_u_protein)
+
+        #### create ttmd.pdb, input for production simulations
+        last_step = ref_u.select_atoms('all')
+        with mda.Writer(f'{folder}/MD/solv.pdb', last_step.n_atoms) as W:
+            W.write(last_step)        
     
     protein = next(oddt.toolkit.readfile('pdb', f'{folder}/MD/reference_protein.pdb'))
     protein.protein = True
@@ -884,25 +894,47 @@ def ref_fingerprint():
 
 
 def run_temp(temperature, t_step, restart):
-    with open("run.nvt", 'w') as f:
-            f.write(f"""parmfile solv.prmtop
-    coordinates solv.pdb
-    temperature {temperature}
-    binCoordinates output.coor
-    binVelocities output.vel
-    extendedSystem output.xsc
-    timestep {timestep}
-    thermostat on
-    thermostatTemperature {temperature}
-    thermostatDamping 0.1
-    run {t_step}ns
-    restart {restart}
-    PME on
-    cutoff 9.0
-    switching on
-    switchDistance 7.5
-    trajectoryFile run_{temperature}.dcd
-    trajectoryPeriod {dcdfreq}""")
+    #### first step starts from pdb (last frame of equil2), prmtop and xsc, as in sumd 
+    if temperature == T_start:
+        with open("run.nvt", 'w') as f:
+                f.write(f"""parmfile solv.prmtop
+        coordinates solv.pdb
+        temperature {temperature}
+        #binCoordinates output.coor
+        #binVelocities output.vel
+        extendedSystem output.xsc
+        timestep {timestep}
+        thermostat on
+        thermostatTemperature {temperature}
+        thermostatDamping 0.1
+        run {t_step}ns
+        restart {restart}
+        PME on
+        cutoff 9.0
+        switching on
+        switchDistance 7.5
+        trajectoryFile run_{temperature}.dcd
+        trajectoryPeriod {dcdfreq}""")
+    else:
+        with open("run.nvt", 'w') as f:
+                f.write(f"""parmfile solv.prmtop
+        coordinates solv.pdb
+        temperature {temperature}
+        binCoordinates output.coor
+        binVelocities output.vel
+        extendedSystem output.xsc
+        timestep {timestep}
+        thermostat on
+        thermostatTemperature {temperature}
+        thermostatDamping 0.1
+        run {t_step}ns
+        restart {restart}
+        PME on
+        cutoff 9.0
+        switching on
+        switchDistance 7.5
+        trajectoryFile run_{temperature}.dcd
+        trajectoryPeriod {dcdfreq}""")
 
     os.system(f"acemd3 --device {device} run.nvt")
     os.system(f"cp output.coor output_files/output_{temperature}.coor")
