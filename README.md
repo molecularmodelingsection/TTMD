@@ -7,7 +7,7 @@ Pavan M., Menin S., Bassani D., Sturlese M., Moro S. (under peer-review at *Jour
 
 This script automatizes the passages needed to execute a TTMD simulation, from the system setup, to the equilibration protocol, the production phase and trajectory analyses. A TXT file is provided in order to reconstitute the right Python virtual environment needed to run the TTMD.py script. 
 To reconstitute the right Python virtual environment to run the TTMD.py code:
-- conda create --name ttmd --file ttmd.txt
+- **conda create --name ttmd --file ttmd.txt**
 
 The code relies on **external software dependency**:
 - **Visual Molecular Dynamics (VMD)**  
