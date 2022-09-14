@@ -3,7 +3,7 @@
 
 ### TEMPERATURE SET LIST:
 # [[t_a1, t_z1, interval1, step1], [t_a2, t_z2, interval2, step2], [...]] (int format)
-temp_set = [[430, 450, 10, 10]] #[t_start, t_end, t_step, step_len]
+temp_set = [[300, 450, 10, 10]] #[t_start, t_end, t_step, step_len]
 
 ### COMPUTER SETTINGS
 device = 0     ### GPU device ID (int format)
