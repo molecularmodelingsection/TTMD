@@ -12,12 +12,12 @@ To reconstitute the right Python virtual environment to run the TTMD.py code:
 The code relies on **external software dependency**:
 - **Visual Molecular Dynamics (VMD)**  
 
-System setup and parameterization for molecular dynamics is carried out by AmberTools22, which are installed within the provided conda environment. The current version of the script only supports the **ACEMD3 engine** to run molecular dynamics simulations. As for AmberTools22, ACEMD3 is also already installed within the provided conda environment. 
+System setup and parameterization for molecular dynamics is carried out by AmberTools22, which are installed within the provided conda environment. The current version of the script only supports the **ACEMD3 engine** to run molecular dynamics simulations. As for AmberTools22, ACEMD3 is also already installed within the provided conda environment.
 
-To run a TTMD simulation on a protein-ligand complex of interest, create a folder containing the TTMD.py script plus the adequately prepared protein and ligand structures in the .pdb and .mol2 format respectively. **Editable settings can be changed at the beginning of the script**. 
+To run a TTMD simulation on a protein-ligand complex of interest, create a folder containing the TTMD.py script plus the adequately prepared protein and ligand structures in the .pdb and .mol2 format respectively. **Editable settings can be provided either through the command line or through a configuration file (this option overrides command line arguments)**. 
 To run the code:
 1. open a terminal within the directory of interest
 2. activate the right conda environment (**conda activate ttmd**)
-3. run the code (**python3 TTMD.py**)
+3. run the code (**python3 TTMD.py [options]**)
 
 To test the code, an example system is provided in the **test** directory.
