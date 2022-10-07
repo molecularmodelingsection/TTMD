@@ -1,0 +1,29 @@
+[Defaults]
+
+#system preparation
+protein_name = protein.pdb
+ligand_name = ligand.mol2
+ligand_charge = 0
+padding = 15
+iso = no
+
+#simulation setup
+temp_ramp = [[300, 450, 10, 10],]
+timestep = 2
+dcdfreq = 10000
+min_steps  = 500
+equil1_len = 0.1
+equil2_len = 0.1
+resume = yes
+
+#postprocessing & analysis
+stride = 1
+dryer = yes
+smooth = 200
+
+#hardware settings
+device = 0
+n_procs = 4
+
+#external dependencies
+vmd_path = /odex/bin/vmd

@@ -1,42 +1,8 @@
-###############################################################################
-### SET PARAMETERS
-
-### TEMPERATURE SET LIST:
-# [[t_a1, t_z1, interval1, step1], [t_a2, t_z2, interval2, step2], [...]] (int format)
-temp_set = [[300, 450, 10, 10]] #[t_start, t_end, t_step, step_len]
-
-### COMPUTER SETTINGS
-device = 0     ### GPU device ID (int format)
-n_procs = 4     ### cores number for analysis modules (int format)
-
-protein_name = 'protein.pdb'    ### protein filename (.pdb)
-ligand_name = 'ligand.mol2'     ### ligand filename (.mol2)
-ligand_charge = 0               ### ligand charge (int format)
-
-### EXTERNAL DEPENDENCIES PATH
-vmd = '/odex/bin/vmd'
-
-### water padding around protein (Å)
-padding = 20
-### make water box cubic
-iso = 'iso'
-
-dryer = 'yes'       ### if 'yes': dry final merged trj (output without water and ions)
-                        # N.B. a dryed trj needs less disk space,
-                            # while water coordinates can be retrieved from
-                            # conserved run_*.dcd and swag_*.dcd trajectories
-                    ### if 'no': final trj with water and ions
-
-### components selection for statistics
-components = ['resname WAT', 'protein', 'resname LIG', 'resname Na+', 'resname Cl-']
-
-### RESTART FEATURE (EXPERIMENTAL!!!)
-resume = True       ### if True: resume simulation
-                    ### if False: reset folders and restart from system preparation
+#!/usr/bin/env python
 
 ### comment MAIN row(s) to skip
 def MAIN():
-    ### PREPARATORY STEPS   
+    ### PREPARATORY STEPS 
     prepare_system()
     statistics()
     equil()
@@ -53,20 +19,6 @@ def MAIN():
   # if launched with nohup: in case of need, kill all child processes
   # executing kill.py script, created after starting main program
 # N.B. this script works with python3
-
-###############################################################################
-
-min_steps  = 500     ### minimization steps with the conjugate gradient algorithm before equil1
-equil1_len = 0.1     ### equil1 duration (ns)
-equil2_len = 0.5     ### equil2 duration (ns)
-
-timestep = 2         # integration timestep in fs
-dcdfreq = 10000      # frequency at which a trajectory frame is saved
-stride = 1           # stride to apply to final trajectory
-
-smooth = 200        ### smoothing factor in final graphs
-
-###############################################################################
 
 header = '''
 ###########################################################################
@@ -93,17 +45,16 @@ header = '''
 
 ###############################################################################
 
-
 import os
-import re
 import sys
+import argparse
+import configparser
 import glob
 from tabulate import tabulate
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 import matplotlib.colors as mplcolors
-from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 import oddt
 from oddt import fingerprints
 import MDAnalysis as mda
@@ -111,32 +62,262 @@ import MDAnalysis.transformations as trans
 from MDAnalysis.analysis import align
 from MDAnalysis.analysis import rms
 import sklearn.metrics
-from sklearn.metrics import pairwise_distances
-from scipy.interpolate import make_interp_spline, BSpline
+from scipy.interpolate import make_interp_spline
 from scipy.stats import linregress
 import multiprocessing
 import tqdm
-
-
 
 np.set_printoptions(threshold=sys.maxsize)
 if not sys.warnoptions:
     import warnings
     warnings.simplefilter("ignore")
 
+script_name = os.path.basename(__file__)
+
 folder = os.getcwd()
+
+### components selection for statistics
+components = ['resname WAT', 'protein', 'resname LIG', 'resname Na+', 'resname Cl-']
 
 done_temperature = []
 
 ref_fp = ''
 
-T_start = temp_set[0][0]
-T_stop = temp_set[-1][1]
+###############################################################################
+### PARSE CONFIG
 
-conversion_factor = timestep * dcdfreq * stride / 1000000
+def parse_input():
+    # initialize parser object
+    parser = argparse.ArgumentParser(description='Thermal Titration Molecular Dynamics')
 
-script_name = os.path.basename(__file__)
+    ## required arguments are defined as optional and manually checked afterwards
+    # required arguments
+    parser.add_argument("-f", "--config_file", type=str, help='Config file (overrides command line options)', metavar='', dest='config_file')
+    parser.add_argument('-p', '--protein_name', help='Protein file in the .pdb format [REQUIRED]', metavar='', dest='protein_name')
+    parser.add_argument('-l', '--ligand_name', help='Ligand file in the .mol2 format [REQUIRED]', metavar='', dest='ligand_name')
+    parser.add_argument('-fc', '--ligand_charge', type=int, help='Ligand formal charge [REQUIRED]', metavar='', dest='ligand_charge')
+    parser.add_argument('-vp', '--vmd_path', help='path/to/vmd_executable [REQUIRED]', metavar='', dest='vmd')
+    # optional arguments
+    parser.add_argument('-pd', '--padding', default=15, type=int, help='Padding value for simulation box (Å), default=15', metavar='', dest='padding')
+    parser.add_argument('-i', '--iso', default='no', type=str, help='Flag to build cubic box (bool), default=no', metavar='', dest='iso')
+    parser.add_argument('-tr', '--temp_ramp', default=[[300, 450, 10, 10],], type=list, help='Temperature ramp (list), default=[[300, 450, 10, 10]]', metavar='', dest='temp_ramp')
+    parser.add_argument('-ts', '--timestep', default=2, type=int, help='Timestep (fs) for MD simulations, default=2', metavar='', dest='timestep')
+    parser.add_argument('-df', '--dcdfreq', default=10000, type=int, help='Period of the trajectory files, default=10000', metavar='', dest='dcdfreq')
+    parser.add_argument('-ms', '--min_steps', default=500, type=int, help='Minimization steps with the cg algorithm before equilibration, default=500', metavar='', dest='min_steps')
+    parser.add_argument('-e1', '--equil1_len', default=0.1, type=float, help='Lenght of the first (NVT) equilibration stage (ns), default=0.1', metavar='', dest='equil1_len')
+    parser.add_argument('-e2', '--equil2_len', default=0.5, type=float, help='Lenght of the second (NPT) equilibration stage (ns), default=0.5', metavar='', dest='equil2_len')
+    parser.add_argument('-r', '--resume', default='yes', type=str, help='Resume simulations or restart from the beginning of the step, default=yes', metavar='', dest='resume')
+    parser.add_argument('-st', '--stride', default=1, type=int, help='Stride for the final (merged) trajectory, default=1', metavar='', dest='stride')
+    parser.add_argument('-d', '--dryer', default='yes', type=str, help='Remove water and ions from output trajectory, default=yes', metavar='', dest='dryer')
+    parser.add_argument('-sm', '--smooth', default=200, type=int, help='Smoothing for the curve reported on output plots, default=200', metavar='', dest='smooth')
+    parser.add_argument('-dv', '--device', default=0, type=int, help='Index of GPU device to use for MD simulations, default=0', metavar='', dest='device')
+    parser.add_argument('-np', '--n_procs', default=4, type=int, help='Number of CPU cores to use for trajectory analysis, default=4', metavar='', dest='n_procs')
+    
+    args = parser.parse_args()
 
+    global config_name
+    config_name = args.config_file
+
+    # if config file is provided, options are read directly from it and used to replace the default values
+    if args.config_file:
+        config = configparser.ConfigParser()
+        config.read(args.config_file)
+        defaults = {}
+        defaults.update(dict(config.items("Defaults")))
+        # configparser cannot properly read lists from config files
+        if 'temp_ramp' in defaults.keys():
+            import ast
+            my_list = ast.literal_eval(config.get("Defaults", "temp_ramp"))
+            defaults['temp_ramp'] = my_list    
+        parser.set_defaults(**defaults)
+        args = parser.parse_args() # Overwrite arguments
+
+    # setup variables for script execution from user-defined parameters
+
+    #check existence and correct format of protein file
+    try:
+        global protein_name
+        protein_name = os.path.abspath(args.protein_name)
+    except Exception:
+        print('Protein path missing! (check your config file)')
+        sys.exit(0)
+    if not os.path.exists(protein_name):
+        print(f'{protein_name} is not a valid path')
+        sys.exit(0)
+    elif protein_name[-3:] != 'pdb':
+        print('Protein must be in pdb format')
+        sys.exit(0)
+
+    #check existence and correct format of protein file
+    try:
+        global ligand_name
+        ligand_name = os.path.abspath(args.ligand_name)
+    except Exception:
+        print('Ligand path missing! (check your config file)')
+        sys.exit(0)
+    if not os.path.isfile(ligand_name):
+        print(f'{ligand_name} is not a valid path')
+        sys.exit(0)
+    elif ligand_name[-4:] != 'mol2':
+        print('Ligand must be in mol2 format')
+        sys.exit(0)
+
+    #check existence of ligand charge
+    global ligand_charge
+    ligand_charge = args.ligand_charge
+    if ligand_charge == None:
+        print('Ligand charge missing! (check your config file)')
+        sys.exit(0)
+
+    global padding
+    padding = args.padding
+    global iso
+    if args.iso == 'yes':
+        iso = 'iso'
+    elif args.iso == 'no':
+        iso = ''
+    else:
+        sys.exit('invalid iso settings')
+
+    #check correct construction of the temperature ramp list
+    global temp_set
+    temp_set = args.temp_ramp
+    ramp_check = True
+    count = 0
+    temp_list = []
+    for sublist in temp_set:
+        count += 1
+        #check if the temperature step is correctly set
+        t_start = sublist[0]
+        t_end = sublist[1]
+        T_step = sublist[2]
+        if (t_end-t_start) % T_step != 0:
+            ramp_check = False
+            print('\nTemperature ramp is not set up correctly!')
+            print(f'--> List n° {count} contains an invalid temperature step ({T_step})\n')
+        #check if each list has the right number of elements
+        num_el = len(sublist)
+        if num_el != 4:
+            ramp_check = False
+            print('\nTemperature ramp is not set up correctly!')
+            print(f'--> List n° {count} contains only {num_el} elements!\n')
+    #if one condition is not satisfied, exit the program
+    if not ramp_check:
+        print(f'\nYour ramp: {temp_set}\nThe right way: [[T_start (K), T_end (K), T_step (K), step_len (ns)],]\n')
+        sys.exit(0)
+
+    global T_start
+    T_start = temp_set[0][0]
+    global T_stop
+    T_stop = temp_set[-1][1]
+
+    global timestep
+    timestep = args.timestep
+    global dcdfreq
+    dcdfreq = args.dcdfreq
+    global min_steps
+    min_steps  = args.min_steps
+    global equil1_len
+    equil1_len = args.equil1_len
+    global equil2_len
+    equil2_len = args.equil2_len
+    global resume
+    if args.resume == 'yes':
+        resume = True
+    elif args.resume == 'no':
+        resume = False
+    else:
+        sys.exit('invalid resume settings')
+    global stride
+    stride = args.stride
+
+    global conversion_factor
+    conversion_factor = timestep * dcdfreq * stride / 1000000
+
+    global dryer
+    if args.dryer:
+        dryer = 'yes'
+    else:
+        dryer = ''
+    global smooth
+    smooth = args.smooth
+    global device
+    device = args.device
+    global n_procs
+    n_procs = args.n_procs
+    global vmd
+    #check if provided vmd path is correct: if not, search for local installation of vmd and use that instead
+    vmd_check = True
+    #control first if vmd path is provided
+    try:
+        vmd = os.path.abspath(args.vmd_path)
+    except Exception:
+        print('\nVMD path missing! (check your config file)\n')
+        vmd_check = False
+    #control if provided path is a valid path
+    if vmd_check and not os.path.isfile(vmd):
+        print(f'\n{vmd} is not a valid path\n')
+        vmd_check = False
+    #control if provided vmd path refers to a vmd installation
+    if vmd_check and os.path.isfile(vmd):
+        exe = vmd.split('/')[-1]
+        if 'vmd' not in exe:
+            print(f'\n{vmd} is not a valid VMD executable\n')
+            vmd_check = False
+    if not vmd_check:
+        #if vmd is not installed on local machine, exit from the program
+        import subprocess
+        try:
+            vmd_installed_path = str(subprocess.check_output(['which','vmd']))[2:-3]
+        except Exception:
+            print('\nVMD is not installed on your machine!\n')
+            sys.exit(0)
+        print(f'\nFound existing installation of VMD at {vmd_installed_path}')
+        print(f'Using {vmd_installed_path}\n')
+        vmd = vmd_installed_path
+
+    # write config file with user-defined parameters for reproducibility reason
+    vars_file = f'''
+    [Defaults]
+
+    #system preparation
+    protein_name = {protein_name}
+    ligand_name = {ligand_name}
+    ligand_charge = {ligand_charge}
+    padding = {padding}
+    iso = {args.iso}
+
+    #simulation setup
+    temp_ramp = {temp_set}
+    timestep = {timestep}
+    dcdfreq = {dcdfreq}
+    min_steps  = {min_steps}
+    equil1_len = {equil1_len}
+    equil2_len = {equil2_len}
+    resume = {resume}
+
+    #postprocessing & analysis
+    stride = {stride}
+    dryer = {args.dryer}
+    smooth = {smooth}
+
+    #hardware settings
+    device = {device}
+    n_procs = {n_procs}
+
+    #external dependencies
+    vmd = {vmd}
+    '''
+
+    with open('vars.dat','w') as f:
+        f.write(vars_file)
+
+    # print settings used for the current ttmd run, as stored in the 'vars.dat' file
+    print('\n** Parameters for your simulations were stored in vars.dat **\n')
+    print('\n#######################################################\n')
+    print(vars_file)
+    print('\n#######################################################\n')
+    
 ###############################################################################
 ### RESUME FUNCTIONS
 
@@ -184,7 +365,7 @@ def gpu_info():
     elif resume == False:
         files = glob.glob('*')
         for f in files:
-            if f == ligand_name or f == protein_name or f == script_name:
+            if f == os.path.basename(ligand_name) or f == os.path.basename(protein_name) or f == script_name or f == config_name or f == 'vars.dat':
                 continue
             else:
                 os.system(f'rm -r {f}')
@@ -257,11 +438,6 @@ def MultiThreading(args, func, num_procs, desc):
 
 
 
-def protect_process(func, args):
-    result = func(*args)
-    return result
-
-
 if __name__ == '__main__':
     multiprocessing.set_start_method("spawn")
 
@@ -306,7 +482,7 @@ def worker(input, output):
         ### job = function name, args for function
 
         func, args = job
-        result = protect_process(func, args)
+        result = func(*args)
         ### function is executed and return a result value
 
         ret_val = (seq, result)
@@ -317,6 +493,13 @@ def worker(input, output):
 
 ###############################################################################
 ### MULTIPROCESSING FUNCTIONS
+
+def wrapping(topology, trajectory, wrap_trj):
+    blocks = trajectory_blocks(topology, trajectory)[0]
+    wrapped_blocks = parallelizer.run(blocks, wrap_blocks, n_procs, 'Wrapping blocks')
+    merge_trj(topology, wrapped_blocks, wrap_trj, remove=True)
+
+
 
 def wrap_blocks(*args):
 
@@ -477,168 +660,6 @@ def dry_trj(*args):
 
 ###############################################################################
 
-def prepare_system():
-    os.chdir(folder)
-    print('————————————————————\nSystem preparation\n————————————————————\n')
-
-    with open("complex.in", 'w') as f:
-        f.write(f"""source leaprc.protein.ff14SB
-source leaprc.water.tip3p
-source leaprc.gaff
-loadamberprep ligand.prepi
-loadamberparams ligand.frcmod
-loadoff atomic_ions.lib
-loadamberparams frcmod.ionsjc_tip3p
-PROT = loadpdb {protein_name}
-LIG = loadmol2 ligand_charged.mol2
-COMPL = combine{{PROT LIG}}
-saveAmberParm LIG ligand.prmtop ligand.inpcrd
-saveAmberParm PROT protein.prmtop protein.inpcrd
-saveAmberParm COMPL complex.prmtop complex.inpcrd
-solvatebox COMPL TIP3PBOX {padding} {iso}
-savepdb COMPL solv.pdb
-saveamberparm COMPL solv.prmtop solv.inpcrd
-quit
-    """)
-
-    with open("determine_ions_fixed.vmd", 'w') as f:
-        f.write("""set saltConcentration 0.154
-mol delete all
-mol load parm7 solv.prmtop pdb solv.pdb 
-set sel [atomselect top "water and noh"];
-set nWater [$sel num];
-$sel delete
-if {$nWater == 0} {
-    error "ERROR: Cannot add ions to unsolvated system."
-    exit
-}
-set all [ atomselect top all ]
-set charge [measure sumweights $all weight charge]
-set intcharge [expr round($charge)]
-set chargediff [expr $charge - $intcharge]
-if { ($chargediff < -0.01) || ($chargediff > 0.01) } {
-    error "ERROR: There is a problem with the system. The system does not seem to have integer charge."
-    exit
-}
-puts "System has integer charge: $intcharge"
-set cationStoich 1
-set anionStoich 1
-set cationCharge 1
-set anionCharge -1
-set num [expr {int(0.5 + 0.0187 * $saltConcentration * $nWater)}]
-set nCation [expr {$cationStoich * $num}]
-set nAnion [expr {$anionStoich * $num}]
-if { $intcharge >= 0 } {
-    set tmp [expr abs($intcharge)]
-    set nCation [expr $nCation - round($tmp/2.0)]
-    set nAnion  [expr $nAnion + round($tmp/2.0)] 
-    if {$intcharge%2!=0} {
-    set nCation [expr $nCation + 1]}
-    puts "System charge is positive, so add $nCation cations and $nAnion anions"
-} elseif { $intcharge < 0 } {
-    set tmp [expr abs($intcharge)]
-    set nCation [expr $nCation + round($tmp/2.0)]
-    set nAnion  [expr $nAnion - round($tmp/2.0)]
-    if {$intcharge%2!=0} { 
-    set nAnion [expr $nAnion + 1]}
-    puts "System charge is negative, so add $nCation cations and $nAnion anions"
-}
-if { [expr $intcharge + $nCation - $nAnion] != 0 } {
-    error "ERROR: The calculation has gone wrong. Adding $nCation cations and $nAnion will not result in a neutral system!"
-    exit
-}
-puts "\n";
-puts "Your system already has the following charge: $intcharge"
-puts "Your system needs the following ions to be added in order to be \
-neutralized and have a salt concentration of $saltConcentration M:"
-puts "\tCations of charge $cationCharge: $nCation"
-puts "\tAnions of charge $anionCharge: $nAnion"
-puts "The total charge of the system will be [expr $intcharge + $nCation - $nAnion]."
-puts "\n";
-exit""")
-
-
-
-    os.system(f"antechamber -fi mol2 -i {ligand_name} -o ligand_charged.mol2 -fo mol2 -nc {ligand_charge} -c bcc -pf y -rn LIG")
-    os.system("antechamber -fi mol2 -i ligand_charged.mol2 -o ligand.prepi -fo prepi -pf y")
-    os.system("parmchk2 -i ligand.prepi -f prepi  -o ligand.frcmod")
-    os.system("tleap -f complex.in")
-    os.system(f"{vmd} -dispdev text -e determine_ions_fixed.vmd > ion.log")
-
-    with open("ion.log",'r') as f:
-        lines = f.readlines()
-        for line in lines:
-            if 'Cations of charge 1' in line:
-                cations = str(line.split(':')[1].strip())
-            elif 'Anions of charge -1' in line:
-                anions = str(line.split(':')[1].strip())
-            else:
-                pass
-    os.system('rm determine_ions_fixed.vmd ion.log')
-
-
-
-    with open("complex.in", 'w') as f:
-        f.write(f"""source leaprc.protein.ff14SB
-source leaprc.water.tip3p 
-source leaprc.gaff
-loadamberprep ligand.prepi
-loadamberparams ligand.frcmod
-loadoff atomic_ions.lib
-loadamberparams frcmod.ionsjc_tip3p
-PROT = loadpdb {protein_name}
-LIG = loadmol2 ligand_charged.mol2
-COMPL = combine{{PROT LIG}}
-saveAmberParm LIG ligand.prmtop ligand.inpcrd
-saveAmberParm PROT protein.prmtop protein.inpcrd
-saveAmberParm COMPL complex.prmtop complex.inpcrd
-solvatebox COMPL TIP3PBOX {padding} {iso}
-addIonsRand COMPL Na+ {cations} Cl- {anions} 5
-savepdb COMPL solv.pdb
-saveamberparm COMPL solv.prmtop solv.inpcrd
-quit
-""")
-
-    os.system(f"tleap -f complex.in")
-
-
-
-    with open("check_charge.vmd", 'w') as f:
-        f.write("""mol load parm7 solv.prmtop pdb solv.pdb
-set all [atomselect top all]
-set curr_charge [measure sumweights $all weight charge]
-puts [format "\nCurrent system charge is: %.3f\n" $curr_charge]
-exit""")
-
-    os.system(f"{vmd} -dispdev text -e check_charge.vmd > charge.log")
-
-    with open("charge.log",'r') as f:
-        lines = f.readlines()
-        for line in lines:
-            if line.startswith('Current system charge is: '):
-                end = str(line.split(':')[1].strip())
-        if end.startswith("0.") or end.startswith("-0."):
-            pass
-        else:
-            exit("Error: system charge is not 0!")
-    os.system("rm check_charge.vmd charge.log")
-
-    if not os.path.exists('equil1'):
-        os.mkdir("equil1")
-    if not os.path.exists('equil2'):
-        os.mkdir("equil2")
-    if not os.path.exists('MD'):
-        os.mkdir("MD")
-
-    os.system("cp solv.pdb equil1/")
-    os.system("cp solv.prmtop equil1/")
-    os.system("cp solv.pdb equil2/")
-    os.system("cp solv.prmtop equil2/")
-    os.system("cp solv.pdb MD/")
-    os.system("cp solv.prmtop MD/")
-
-
-
 def statistics():
     os.chdir(folder)
     
@@ -711,6 +732,188 @@ def statistics():
         t.write('\n\n\n')
         t.write(table)
 
+
+
+def prepare_system():
+    os.chdir(folder)
+
+    if not os.path.exists('solv.pdb') and not os.path.exists('solv.prmtop'):
+        print('————————————————————\nSystem preparation\n————————————————————\n')
+
+        with open("complex.in", 'w') as f:
+            f.write(f"""source leaprc.protein.ff14SB
+    source leaprc.water.tip3p
+    source leaprc.gaff
+    loadamberprep ligand.prepi
+    loadamberparams ligand.frcmod
+    loadoff atomic_ions.lib
+    loadamberparams frcmod.ionsjc_tip3p
+    PROT = loadpdb {protein_name}
+    LIG = loadmol2 ligand_charged.mol2
+    COMPL = combine{{PROT LIG}}
+    saveAmberParm LIG ligand.prmtop ligand.inpcrd
+    saveAmberParm PROT protein.prmtop protein.inpcrd
+    saveAmberParm COMPL complex.prmtop complex.inpcrd
+    solvatebox COMPL TIP3PBOX {padding} {iso}
+    savepdb COMPL solv.pdb
+    saveamberparm COMPL solv.prmtop solv.inpcrd
+    quit
+        """)
+
+        with open("determine_ions_fixed.vmd", 'w') as f:
+            f.write("""set saltConcentration 0.154
+    mol delete all
+    mol load parm7 solv.prmtop pdb solv.pdb 
+    set sel [atomselect top "water and noh"];
+    set nWater [$sel num];
+    $sel delete
+    if {$nWater == 0} {
+        error "ERROR: Cannot add ions to unsolvated system."
+        exit
+    }
+    set all [ atomselect top all ]
+    set charge [measure sumweights $all weight charge]
+    set intcharge [expr round($charge)]
+    set chargediff [expr $charge - $intcharge]
+    if { ($chargediff < -0.01) || ($chargediff > 0.01) } {
+        error "ERROR: There is a problem with the system. The system does not seem to have integer charge."
+        exit
+    }
+    puts "System has integer charge: $intcharge"
+    set cationStoich 1
+    set anionStoich 1
+    set cationCharge 1
+    set anionCharge -1
+    set num [expr {int(0.5 + 0.0187 * $saltConcentration * $nWater)}]
+    set nCation [expr {$cationStoich * $num}]
+    set nAnion [expr {$anionStoich * $num}]
+    if { $intcharge >= 0 } {
+        set tmp [expr abs($intcharge)]
+        set nCation [expr $nCation - round($tmp/2.0)]
+        set nAnion  [expr $nAnion + round($tmp/2.0)] 
+        if {$intcharge%2!=0} {
+        set nCation [expr $nCation + 1]}
+        puts "System charge is positive, so add $nCation cations and $nAnion anions"
+    } elseif { $intcharge < 0 } {
+        set tmp [expr abs($intcharge)]
+        set nCation [expr $nCation + round($tmp/2.0)]
+        set nAnion  [expr $nAnion - round($tmp/2.0)]
+        if {$intcharge%2!=0} { 
+        set nAnion [expr $nAnion + 1]}
+        puts "System charge is negative, so add $nCation cations and $nAnion anions"
+    }
+    if { [expr $intcharge + $nCation - $nAnion] != 0 } {
+        error "ERROR: The calculation has gone wrong. Adding $nCation cations and $nAnion will not result in a neutral system!"
+        exit
+    }
+    puts "\n";
+    puts "Your system already has the following charge: $intcharge"
+    puts "Your system needs the following ions to be added in order to be \
+    neutralized and have a salt concentration of $saltConcentration M:"
+    puts "\tCations of charge $cationCharge: $nCation"
+    puts "\tAnions of charge $anionCharge: $nAnion"
+    puts "The total charge of the system will be [expr $intcharge + $nCation - $nAnion]."
+    puts "\n";
+    exit""")
+
+
+
+        os.system(f"antechamber -fi mol2 -i {ligand_name} -o ligand_charged.mol2 -fo mol2 -nc {ligand_charge} -c bcc -pf y -rn LIG")
+        os.system("antechamber -fi mol2 -i ligand_charged.mol2 -o ligand.prepi -fo prepi -pf y")
+        os.system("parmchk2 -i ligand.prepi -f prepi  -o ligand.frcmod")
+        os.system("tleap -f complex.in")
+        os.system(f"{vmd} -dispdev text -e determine_ions_fixed.vmd > ion.log")
+
+        with open("ion.log",'r') as f:
+            lines = f.readlines()
+            for line in lines:
+                if 'Cations of charge 1' in line:
+                    cations = str(line.split(':')[1].strip())
+                elif 'Anions of charge -1' in line:
+                    anions = str(line.split(':')[1].strip())
+                else:
+                    pass
+        os.system('rm determine_ions_fixed.vmd ion.log')
+
+
+
+        with open("complex.in", 'w') as f:
+            f.write(f"""source leaprc.protein.ff14SB
+    source leaprc.water.tip3p 
+    source leaprc.gaff
+    loadamberprep ligand.prepi
+    loadamberparams ligand.frcmod
+    loadoff atomic_ions.lib
+    loadamberparams frcmod.ionsjc_tip3p
+    PROT = loadpdb {protein_name}
+    LIG = loadmol2 ligand_charged.mol2
+    COMPL = combine{{PROT LIG}}
+    saveAmberParm LIG ligand.prmtop ligand.inpcrd
+    saveAmberParm PROT protein.prmtop protein.inpcrd
+    saveAmberParm COMPL complex.prmtop complex.inpcrd
+    solvatebox COMPL TIP3PBOX {padding} {iso}
+    addIonsRand COMPL Na+ {cations} Cl- {anions} 5
+    savepdb COMPL solv.pdb
+    saveamberparm COMPL solv.prmtop solv.inpcrd
+    quit
+    """)
+
+        os.system(f"tleap -f complex.in")
+
+
+
+        with open("check_charge.vmd", 'w') as f:
+            f.write("""mol load parm7 solv.prmtop pdb solv.pdb
+    set all [atomselect top all]
+    set curr_charge [measure sumweights $all weight charge]
+    puts [format "\nCurrent system charge is: %.3f\n" $curr_charge]
+    exit""")
+
+        os.system(f"{vmd} -dispdev text -e check_charge.vmd > charge.log")
+
+        with open("charge.log",'r') as f:
+            lines = f.readlines()
+            for line in lines:
+                if line.startswith('Current system charge is: '):
+                    end = str(line.split(':')[1].strip())
+            if end.startswith("0.") or end.startswith("-0."):
+                pass
+            else:
+                exit("Error: system charge is not 0!")
+        os.system("rm check_charge.vmd charge.log")
+
+        if not os.path.exists('equil1'):
+            os.mkdir("equil1")
+        if not os.path.exists('equil2'):
+            os.mkdir("equil2")
+        if not os.path.exists('MD'):
+            os.mkdir("MD")
+
+        os.system("cp solv.pdb equil1/")
+        os.system("cp solv.prmtop equil1/")
+        os.system("cp solv.pdb equil2/")
+        os.system("cp solv.prmtop equil2/")
+        os.system("cp solv.pdb MD/")
+        os.system("cp solv.prmtop MD/")
+
+        statistics()
+
+
+
+def trj_check_start(top, trj, trj_len):
+
+    checked = False
+
+    check_u = mda.Universe(top, trj)
+    check_frames = len(check_u.trajectory)
+    req_frames = trj_len / conversion_factor
+
+    if float(check_frames) == float(req_frames):
+        print('——Trajectory integrity checked')
+        checked = True
+    
+    return checked
+    
 
 
 def equil1(restart):
@@ -789,33 +992,24 @@ trajectoryPeriod {dcdfreq}""")
 
 def equil():
     os.chdir(f"{folder}/equil1")
+
     print('————————————————————\nRUNNING EQUILIBRATION\n————————————————————\n')
+
     if not os.path.exists(f"{folder}/equil1/equil1.dcd"):
         print('Running equil1')
         equil1('off')
 
-    else:
-        print('Check equil1 trajectory integrity')
-
-        check_u = mda.Universe('solv.prmtop', 'equil1.dcd')
-        check_frames = len(check_u.trajectory)
-        equil1_frame = equil1_len / conversion_factor
-
-        if float(check_frames) == float(equil1_frame):
-            print('——Trajectory integrity checked')
-
-        else:
-            print('——Trajectory incomplete')
+    if trj_check_start('solv.pdb', 'equil1.dcd', equil1_len) == False:
+        print('——Trajectory incomplete')
+        
+        if resume_check == True:
+            print('————Resuming equil1')
+            equil1('on')
             
-            if resume_check == True:
-                print('————Resuming equil1')
-                equil1('on')
-                
-
-            else:
-                os.system(f'rm equil1.dcd')
-                print('————Restarting equil1')
-                equil1('off')
+        else:
+            os.system(f'rm equil1.dcd')
+            print('————Restarting equil1')
+            equil1('off')
 
     os.system("cp output* ../equil2")
 
@@ -828,14 +1022,8 @@ def equil():
     else:
         print('Check equil2 trajectory integrity')
 
-        check_u = mda.Universe('solv.prmtop', 'equil2.dcd')
-        check_frames = len(check_u.trajectory)
-        equil2_frame = equil2_len / conversion_factor
+        if trj_check_start('solv.pdb', 'equil2.dcd', equil2_len) == False:
 
-        if float(check_frames) == float(equil2_frame):
-            print('——Trajectory integrity checked')
-
-        else:
             print('——Trajectory incomplete')
             if resume_check == True:
                 print('————Resuming equil2')
@@ -970,16 +1158,9 @@ def titration(temperature, t_step):
 
     else:
         print(f'——run_{temperature}.dcd found')
-        print('————Checking trajectory integrity')
+        
+        if trj_check_start('solv.pdb', f'run_{temperature}.dcd', t_step) == False:
 
-        check_u = mda.Universe('solv.pdb', f'run_{temperature}.dcd')
-        check_frames = len(check_u.trajectory)
-        run_frame = t_step / conversion_factor
-
-        if check_frames == run_frame:
-            print('————Trajectory integrity checked')
-
-        else:
             if resume_check == True:
                 print('——————Resuming trajectory')
                 run_temp(temperature, t_step, 'on')
@@ -998,24 +1179,12 @@ def titration(temperature, t_step):
     
     if not os.path.exists(wrap_trj):
         print(f'——swag_{temperature}.dcd doesn\'t exists')
-        blocks = trajectory_blocks(topology, trajectory)[0]
-        wrapped_blocks = parallelizer.run(blocks, wrap_blocks, n_procs, 'Wrapping blocks')
-        merge_trj(topology, wrapped_blocks, wrap_trj, remove=True)
+        wrapping(topology, trajectory, wrap_trj)
 
-    else:
-        print(f'——swag_{temperature}.dcd found')
-        check_u = mda.Universe('solv.pdb', f'swag_{temperature}.dcd')
-        check_frames = len(check_u.trajectory)
-        swag_frame = t_step / conversion_factor
+    elif trj_check_start('solv.pdb', f'run_{temperature}.dcd', t_step) == False:
 
-        if check_frames == swag_frame:
-            print('————Trajectory integrity checked')
-
-        else:
-            print('————Wrapped trj lenght mismatch\nRewrapping')
-            blocks = trajectory_blocks(topology, trajectory)[0]
-            wrapped_blocks = parallelizer.run(blocks, wrap_blocks, n_procs, 'Wrapping blocks')
-            merge_trj(topology, wrapped_blocks, wrap_trj, remove=True)
+        print('————Wrapped trj lenght mismatch\nRewrapping')
+        wrapping(topology, trajectory, wrap_trj)
 
 
     global ref_fp
@@ -1332,6 +1501,7 @@ def titration_profile():
 
 if __name__ == '__main__':
     print(header)
+    parse_input()
     pid()
     gpu_info()
     MAIN()
