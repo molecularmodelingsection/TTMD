@@ -1181,7 +1181,7 @@ def titration(temperature, t_step):
         print(f'——swag_{temperature}.dcd doesn\'t exists')
         wrapping(topology, trajectory, wrap_trj)
 
-    elif trj_check_start('solv.pdb', f'run_{temperature}.dcd', t_step) == False:
+    elif trj_check_start('solv.pdb', f'swag_{temperature}.dcd', t_step) == False:
 
         print('————Wrapped trj lenght mismatch\nRewrapping')
         wrapping(topology, trajectory, wrap_trj)
