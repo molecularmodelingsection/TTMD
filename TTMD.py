@@ -744,7 +744,6 @@ def prepare_system():
             f.write(f"""source leaprc.protein.ff14SB
     source leaprc.water.tip3p
     source leaprc.gaff
-    loadamberprep ligand.prepi
     loadamberparams ligand.frcmod
     loadoff atomic_ions.lib
     loadamberparams frcmod.ionsjc_tip3p
@@ -819,8 +818,7 @@ def prepare_system():
 
 
         os.system(f"antechamber -fi mol2 -i {ligand_name} -o ligand_charged.mol2 -fo mol2 -nc {ligand_charge} -c bcc -pf y -rn LIG")
-        os.system("antechamber -fi mol2 -i ligand_charged.mol2 -o ligand.prepi -fo prepi -pf y")
-        os.system("parmchk2 -i ligand.prepi -f prepi  -o ligand.frcmod")
+        os.system("parmchk2 -i ligand.mol2 -f mol2  -o ligand.frcmod")
         os.system("tleap -f complex.in")
         os.system(f"{vmd} -dispdev text -e determine_ions_fixed.vmd > ion.log")
 
@@ -841,7 +839,6 @@ def prepare_system():
             f.write(f"""source leaprc.protein.ff14SB
     source leaprc.water.tip3p 
     source leaprc.gaff
-    loadamberprep ligand.prepi
     loadamberparams ligand.frcmod
     loadoff atomic_ions.lib
     loadamberparams frcmod.ionsjc_tip3p
