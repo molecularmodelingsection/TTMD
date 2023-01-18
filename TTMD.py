@@ -744,6 +744,7 @@ def prepare_system():
             f.write(f"""source leaprc.protein.ff14SB
     source leaprc.water.tip3p
     source leaprc.gaff
+    set default PBradii mbondi2
     loadamberparams ligand.frcmod
     loadoff atomic_ions.lib
     loadamberparams frcmod.ionsjc_tip3p
@@ -839,6 +840,7 @@ def prepare_system():
             f.write(f"""source leaprc.protein.ff14SB
     source leaprc.water.tip3p 
     source leaprc.gaff
+    set default PBradii mbondi2
     loadamberparams ligand.frcmod
     loadoff atomic_ions.lib
     loadamberparams frcmod.ionsjc_tip3p
