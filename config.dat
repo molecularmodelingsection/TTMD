@@ -1,0 +1,27 @@
+#defaults parameters
+method = rt
+receptor = protein.pdb
+receptor_shift = 0
+receptor_resnum = 25
+ligand = ligand.mol2
+ligand_shift = 0
+ligand_resnum = 25
+cutoff_dist = 4.5
+padding = 15
+iso = no
+temp_ramp = [[300, 450, 10, 10]]
+score_stop = -0.05
+stop_range = 10
+timestep = 2
+dcdfreq = 10000
+minsteps = 500
+eq1len = 0.1
+eq2len = 0.5
+dryer = yes
+smooth = 25
+n_procs = 4
+device = 6
+vmd_path = /odex/bin/vmd
+#rmsd_resids = []
+df = True
+n_reps = 1
