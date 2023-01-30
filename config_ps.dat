@@ -1,0 +1,26 @@
+#defaults parameters
+method = ps
+receptor = a.pdb
+receptor_shift = 0
+receptor_resnum = 25
+ligand = b.pdb
+ligand_shift = 0
+ligand_resnum = 25
+cutoff_dist = 4.5
+padding = 15
+iso = no
+temp_ramp = [[300, 450, 10, 10]]
+score_stop = -0.05
+stop_range = 10
+timestep = 2
+dcdfreq = 10000
+minsteps = 500
+eq1len = 0.1
+eq2len = 0.5
+dryer = yes
+smooth = 200
+n_procs = 25
+device = 0
+vmd_path = /odex/bin/vmd
+namd_path = /odex/NAMD_2.9_Linux-x86_64/namd2
+n_reps = 1
