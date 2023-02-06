@@ -1,19 +1,32 @@
+import importlib
 import MDAnalysis as mda
 from MDAnalysis.analysis.hydrogenbonds.hbond_analysis import HydrogenBondAnalysis as HBA
 from matplotlib import pyplot as plt
 from scipy.interpolate import make_interp_spline
 from scipy.stats import linregress
+import numpy as np
+import os
 
 
 class graphs:
     def __init__(self, vars):
         self.__dict__ = vars
 
-        self.denaturing_factor()
+        if not os.path.exists('df'):
+            os.mkdir('df')
+
+        os.chdir('df')
+
+        print('\n    Calculating Denaturating Factor')
+
+        self.df_protein = self.intraprotein_df()
+        self.df_prot_h2o = self.h2oprotein_df()
+
+        os.chdir('..')
 
 
 
-    def denaturing_factor(self):
+    def intraprotein_df(self):
         selection = ''
         for i,r in enumerate(self.rmsd_resids):
             if i == len(self.rmsd_resids) -1 :
@@ -21,53 +34,90 @@ class graphs:
             else:
                 selection += f'resid {r} or '
 
-        ref_bonds = count_hbonds(self.solvprmtop, self.solvpdb, selection)
-
-        mean_hbond = []
-
-        for i in self.done_temp:
-            hbonds = count_hbonds(self.solvprmtop, f'MD/swag_{i}.dcd', selection)
-            avg = sum(hbonds) / len(hbonds)
-            mean_hbond.append(avg)
-
-        fig, axs = plt.subplots(nrows=1, ncols=1)
+        ref_bonds = count_hbonds(self.solvprmtop, self.output['eq2']['dcd'], selection, 'protein', 100, basename='ref_prot_hbonds')
         
-        temperature_list = []
-        for set in self.temperature:
-            temperature_list.append(set[0])
+        temp_hbonds = []
+        for i in self.done_temp:
+            hbonds = count_hbonds(self.solvprmtop, f'../MD/swag_{i}.dcd', selection, 'protein', self.stop_range, basename=f'prot_hbonds', i=i)
+            df = 1 - (hbonds/ref_bonds)
+            temp_hbonds.append(df)
 
-        first_last_t = [self.T_start, self.T_stop]
-        axs.set_xlim(first_last_t)
-        axs.set_ylim(-1,0)
-        axs.scatter(temperature_list[:len(self.avg_list)], self.avg_list, c='royalblue')
-        first_last_score = [-1.0, self.avg_list[-1]]
+        title = 'Intraproteic DF Profile'
+        ylabel = 'Average Hbonds loss'
+        name = '../df_profile'
+        slope_start = 0
+        ylim = [0, None]
 
-        f = np.poly1d(np.polyfit(first_last_t, first_last_score, 1))
-        slope, intercept, r_value, p_value, std_err = linregress(first_last_t, first_last_score)
-        axs.plot(temperature_list, f(temperature_list), color='tomato', ls='--', label="MS = {:.5f}".format(slope))
-        axs.set_title('Titration Profile')
-        axs.set_xlabel('Temperature (K)')
-        axs.set_ylabel('Average IFP$_{CS}$')
-        axs.set_ylim(-1,0)
-        axs.set_xlim(first_last_t)
-        axs.legend()
-        fig.savefig('titration_profile.png', dpi=300)
+        module = importlib.import_module('..profile_graphs', __name__)
+        slope = module.profile_graph(self.done_temp, temp_hbonds, title, ylabel, name, self.colors, ylim=ylim, slope_start=slope_start)
 
         return slope
 
 
 
+    def h2oprotein_df(self):
+        residues = ''
+
+        for i,r in enumerate(self.rmsd_resids):
+            if i == len(self.rmsd_resids) -1 :
+                residues += f'resid {r}'
+            else:
+                residues += f'resid {r} or '
+
+        sel1 = residues
+        sel2 = f'(resname WAT and same residue as within 5 of ({residues}))'
+
+        ref_bonds = count_hbonds(self.solvprmtop, self.output['eq2']['dcd'], sel1, sel2, 100, basename=f'ref_wat_hbonds')        
+
+        temp_hbonds = []
+
+        for i in self.done_temp:
+            hbonds = count_hbonds(self.solvprmtop, f'../MD/swag_{i}.dcd', sel1, sel2, self.stop_range, basename=f'wat_hbonds', i=i)
+            temp_hbonds.append(hbonds)
 
 
-def count_hbonds(topology, trajectory, selection):
+        title = 'Protein-Water DF Profile'
+        ylabel = 'Average Hbonds gain'
+        name = '../df_h2o_profile'
+        slope_start = 0
+        ylim = [0, None]
+
+        module = importlib.import_module('..profile_graphs', __name__)
+        slope = module.profile_graph(self.done_temp, temp_hbonds, title, ylabel, name, self.colors, slope_start=slope_start, ylim=ylim)
+
+        return slope
+
+
+
+def count_hbonds(topology, trajectory, sel1, sel2, stop_range, i=None, basename=None):
+    filename = basename
+    if i != None:
+        filename += f'_{i}'
+    
     u = mda.Universe(topology, trajectory)
+    n = int(len(u.trajectory)*stop_range/100)
 
-    hbonds = HBA(universe=u)
-    protein_hydrogens_sel = hbonds.guess_hydrogens(selection)
-    protein_acceptors_sel = hbonds.guess_acceptors(selection)
-    hbonds.hydrogens_sel = protein_hydrogens_sel
-    hbonds.hydrogens_sel = protein_acceptors_sel
+    if not os.path.exists(filename):
+        hbonds = f'''mol delete all;
+    mol load parm7 {topology} dcd {trajectory}
+    set protein [atomselect top "{sel1}"]
+    set lig [atomselect top "{sel2}"]
+    package require hbonds
+    hbonds -sel1 $protein -sel2 $lig -writefile yes -dist 3.0 -ang 30 -outfile {filename} -type all
+    quit'''
 
-    hbonds.run()
+        with open('hbonds.tcl','w') as f:
+            f.write(hbonds)
 
-    return hbonds.count_by_time()
+        os.system('vmd -dispdev text -e hbonds.tcl > /dev/null 2>&1')
+
+
+    arr = np.loadtxt(filename, delimiter=' ')
+    l = list(arr.T[1])[-n:]
+    s = 0
+    for i in l:
+        s += i
+
+    avg = s / len(l)
+
+    return avg

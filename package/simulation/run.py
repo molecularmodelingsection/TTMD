@@ -17,6 +17,8 @@ class simulation:
 
         os.chdir('MD')
 
+        self.done_temp = []
+
         trj_list = []
         simulation_length = 0
 
@@ -34,9 +36,11 @@ class simulation:
 
             trj_list.append(trj)
 
+            self.done_temp.append(set[0])
+
             if avg > self.score_stop:
-                print(f'{avg} > {self.score_stop}')
-                print('STOP')
+                print(f'    {avg} > {self.score_stop}')
+                print('    STOP')
                 break
 
                 self.t_end = set[0]
@@ -164,7 +168,7 @@ trajectoryPeriod {self.dcdfreq}
         temp, length = set
 
         if not os.path.exists(f'score_{temp}'):
-            outscore = self.score(self.compl.prmtop, wrap_trj, temp)
+            outscore = self.score(self.complprmtop, wrap_trj, temp)
 
             with open(f'score_{temp}', 'w') as f:
                 for s in outscore:
@@ -181,11 +185,10 @@ trajectoryPeriod {self.dcdfreq}
         n = int(len(outscore)*self.stop_range/100)
         stoplist = outscore[-n:]
         
-        avg = calc_avg(outscore)
         stop_avg = calc_avg(stoplist)
 
         output = {'results': outscore,
-                'avg': avg,
+                'avg': stop_avg,
                 }
 
         self.output[i] |= output

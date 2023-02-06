@@ -3,7 +3,6 @@ import numpy as np
 import MDAnalysis as mda
 from MDAnalysis import transformations as trans
 from MDAnalysis.analysis import align
-from utilities.multiprocessing import parallelizer
 
 
 
@@ -15,7 +14,7 @@ class wrapping:
 
     def run(self, topology, trajectory, wrap_trj):
         blocks = trajectory_blocks(topology, trajectory, self.n_procs)[0]
-        wrapped_blocks = parallelizer.run(blocks, wrap_blocks, self.n_procs, '    Wrapping blocks')
+        wrapped_blocks = self.parallelizer.run(blocks, wrap_blocks, '    Wrapping blocks')
         self.merge_trj(topology, wrapped_blocks, wrap_trj, remove=True)
 
 

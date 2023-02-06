@@ -1,3 +1,4 @@
+import importlib
 import MDAnalysis as mda
 from MDAnalysis.analysis import rms
 import matplotlib.pyplot as plt
@@ -39,8 +40,6 @@ class graphs:
         axs[0].set_xlabel('Time (ns)')
         axs[0].set_ylabel('IE Matrix$_{CS}$')
         axs[0].set_ylim(-1,0)
-        # x_lim = ( temp_set[0][1] - temp_set[0][0] ) / temp_set[0][2] * temp_set[0][3] + temp_set[0][3]
-        # axs[0].set_xlim(0,x_lim)
         axs[0].set_xlim(0,self.time_list[-1])
 
         s = axs[0].scatter(x, y, c=self.temperature_list[:len(self.smooth_list)], cmap='RdYlBu_r', norm=divnorm)
@@ -60,14 +59,14 @@ class graphs:
         spl1 = make_interp_spline(x, y1, k=5)
         power_smooth1 = spl1(xnew)
 
-        axs[1].plot(xnew, power_smooth1, color='seagreen', label='Chain A backbone')
+        axs[1].plot(xnew, power_smooth1, color=self.colors[0], label='Chain A backbone')
 
 
         y2 = self.rmsd[1]
         spl2 = make_interp_spline(x, y2, k=5)
         power_smooth2 = spl2(xnew)
 
-        axs[1].plot(xnew, power_smooth2, color='tomato', label='Chain B backbone')
+        axs[1].plot(xnew, power_smooth2, color=self.colors[1], label='Chain B backbone')
 
 
 
@@ -75,7 +74,7 @@ class graphs:
         spl3 = make_interp_spline(x, y3, k=5)
         power_smooth3 = spl3(xnew)
 
-        axs[1].plot(xnew, power_smooth3, color='royalblue', label='BSite CM$_{distance}$')
+        axs[1].plot(xnew, power_smooth3, color=self.colors[2], label='BSite CM$_{distance}$')
         
 
         axs[1].set_ylabel('RMSD (Å)')
@@ -90,26 +89,16 @@ class graphs:
         fig.savefig('titration_timeline.png', dpi=300)
 
 
-
+    
     def titration_profile(self):
-        #### this function plots average IFPcs vs temperature
-        fig, axs = plt.subplots(nrows=1, ncols=1)
-        first_last_t = [self.T_start, self.T_stop]
-        axs.set_xlim(first_last_t)
-        axs.set_ylim(-1,0)
-        axs.scatter(self.done_temp[:len(self.avg_list)], self.avg_list, c='royalblue')
-        first_last_score = [-1.0, self.avg_list[-1]]
-
-        f = np.poly1d(np.polyfit(first_last_t, first_last_score, 1))
-        slope, intercept, r_value, p_value, std_err = linregress(first_last_t, first_last_score)
-        axs.plot(self.temperature_list, f(self.temperature_list), color='tomato', ls='--', label="MS = {:.5f}".format(slope))
-        axs.set_title('Titration Profile')
-        axs.set_xlabel('Temperature (K)')
-        axs.set_ylabel('Average IE Matrix$_{CS}$')
-        axs.set_ylim(-1,0)
-        axs.set_xlim(first_last_t)
-        axs.legend()
-        fig.savefig('titration_profile.png', dpi=300)
+        title = 'Titration Profile'
+        ylim = [-1, 0]
+        ylabel = 'Average IE Matrix$_{CS}$'
+        name = 'titration_profile'
+        slope_start = -1
+        
+        module = importlib.import_module('..profile_graphs', __name__)
+        slope = module.profile_graph(self.done_temp, self.avg_list, title, ylabel, name, self.colors, ylim=ylim, slope_start=slope_start)
 
         return slope
 
@@ -204,74 +193,3 @@ def colorbar_quantile(colorbar, color_list):
     vmax = np.nanquantile(sorted_list, 0.98)
 
     return cm, vmin, vmax
-
-
-
-def process_values(rr_filename_mean, index):
-
-    res_dict = resid_dict()
-
-    x = []
-    y = []
-    z = []
-    color_list = []
-
-    if index == 'all':
-        for t in rr_filename_mean:
-            rr = t[1]
-            for arr in t[2]:
-                rl = arr[0]
-                v = arr[1]
-                x.append(res_dict[rr])
-                y.append(res_dict[rl])
-                z.append(v)
-
-        title = 'Pairwise Interaction Matrix'
-
-    else:
-        for t in rr_filename_mean:
-            filename = t[0]
-            rr = t[1]
-
-            df = pd.read_csv(f'{_wd}/per_residue_matrix/{filename}', sep=',')
-            
-            for col in df.columns:
-                for c in df[col]:
-                    color_list.append(c)
-
-                v = df[col][index]
-
-                x.append(res_dict[rr])
-                y.append(res_dict[col])
-                z.append(v)
-
-        title = f'Pairwise Interaction Matrix\n(Time = {time.time[index]})'
-
-    ax_x = np.unique(x)
-    ax_y = np.unique(y)
-
-    ax = pd.DataFrame(columns=sorted(list(ax_x), key=lambda x: int(x.split(' ')[1])), index=sorted(list(ax_y), key=lambda x: int(x.split(' ')[1])))
-
-    for a,b,c in zip(x,y,z):
-        ax[a][b] = c
-
-    return ax, color_list, title
-
-
-def plot_matrix(rr_filename_mean, index):
-
-    df, color_list, title = process_values(rr_filename_mean, index)
-
-    cm, vmin, vmax = colorbar_quantile('RdBu_r', color_list)  
-        
-    fig, ax = plt.subplots(facecolor='white')
-
-    ax = sns.heatmap(df.astype(float), cmap=cm, center=0, vmin=vmin, vmax=vmax, yticklabels=1, xticklabels=1)
-    cbar_axes = ax.figure.axes[-1]
-    cbar_axes.set_ylabel('Interaction Energy (Kcal/mol)', rotation=270, labelpad=15)
-    ax.tick_params(labelsize=8, axis='x', rotation=45)
-    ax.set_title(title)
-    ax.set_ylabel('Ligand Residue')
-    ax.set_xlabel('Receptor Residue')
-    plt.tight_layout()
-    fig.savefig(f'matrix_{index}.png', dpi=300)

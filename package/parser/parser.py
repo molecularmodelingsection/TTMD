@@ -82,9 +82,9 @@ class input_vars:
             if 'receptor_resnum' in keys:
                 self.receptor_resnum = vars['receptor_resnum']
 
-        if self.method == 'ps':
             if 'receptor_shift' in keys:
                 self.receptor_shift = vars['receptor_shift']
+            
 
 
 
@@ -283,12 +283,38 @@ class input_vars:
                 except Exception:
                     sys.exit('Please check rmsd resids option')
 
-            else:
+            elif type(vars['rmsd_resids']) == list:
                 self.rmsd_resids = vars['rmsd_resids']
 
-        if 'df' in keys:
-            self.df = True
+            if len(self.rmsd_resids) == 0:
+                self.__dict__.pop('rmsd_resids')
 
+
+        if 'df' in keys:
+            if vars['method'] == 'rt':
+                if 'rmsd_resids' in self.__dict__:
+                    self.df = True
+                else:
+                    self.df = False
+
+            if vars['method'] == 'ps':
+                if 'rmsd_resids' not in self.__dict__:
+                    self.top_contacts = ''
+                    self.df = True
+                    self.rmsd_resids = self.top_contacts
+
+
+        if self.method == 'rt':
+            if 'strict' in keys:
+                try:
+                    k = ast.literal_eval(vars['strict'])
+                    self.strict = k
+
+                except Exception:
+                    sys.exit('Please check strict option')
+                    
+        if 'palette' in keys:
+            self.palette = vars['palette']
             
         return self.__dict__
 
@@ -336,42 +362,270 @@ def parse_config_file(config_file):
 
 
 def cmd_parser():
-    common_parser = argparse.ArgumentParser(description='ttmd', add_help=True, argument_default=argparse.SUPPRESS, conflict_handler='resolve')
+    common_parser = argparse.ArgumentParser(
+        description='ttmd',
+        add_help=True,
+        argument_default=argparse.SUPPRESS,
+        conflict_handler='resolve'
+        )
 
-    common_parser.add_argument("-f", "--config_file", type=str, help='Config file (command line options override config_file)', metavar='', dest='config_file', default=None)
-    common_parser.add_argument('-m', '--method', help='choose rt or ps', metavar='', dest='method')
-    common_parser.add_argument('-t', '--receptor', type=str, help='receptor file', metavar='', dest='receptor')
-    common_parser.add_argument('-l', '--ligand', type=str, help='ligand file', metavar='', dest='ligand')
+    common_parser.add_argument(
+        "-f", 
+        "--config_file",
+        type=str,
+        help='Config_file path (command line options override config_file)',
+        metavar='',
+        dest='config_file',
+        default=None
+        )
 
-    ps = common_parser.add_argument_group('additional parameters for ps method')
-    ps.add_argument('-tr', '--receptor_res', type=int, help='', metavar='', dest='receptor_resnum')
-    ps.add_argument('-rshift', '--receptor_shift', type=int, help='', metavar='', dest='receptor_shift')
-    ps.add_argument('-lr', '--ligand_res', type=int, help='', metavar='', dest='ligand_resnum')
-    ps.add_argument('-lshift', '--ligand_shift', type=int, help='', metavar='', dest='ligand_shift')
-    ps.add_argument('-co', '--cutoff', type=float, help='', metavar='', dest='cutoff_dist')
-    ps.add_argument('-namd', '--namdpath', type=str, help='', metavar='', dest='namd_path')
+    common_parser.add_argument(
+        '-m', '--method',
+        help='Choices [rt | ps]',
+        metavar='',
+        dest='method'
+        )
 
-    setup_group = common_parser.add_argument_group('TTMD Setup')
-    setup_group.add_argument('-p', '--padding', type=float, help='', metavar='', dest='padding')
-    setup_group.add_argument('-i', '--iso', help='', dest='iso')
-    setup_group.add_argument('-temp', '--temp_ramp', type=list, help='', metavar='', dest='temp_ramp')
-    setup_group.add_argument('-stop', '--score_stop', type=float, help='', metavar='', dest='score_stop')
-    setup_group.add_argument('-range', '--stop_range', type=int, help='', metavar='', dest='stop_range')
-    setup_group.add_argument('-ts', '--timestep', type=int, help='', metavar='', dest='timestep')
-    setup_group.add_argument('-dcdf', '--dcdfreq', type=int, help='', metavar='', dest='dcdfreq')
-    setup_group.add_argument('-min', '--minsteps', type=int, help='', metavar='', dest='minsteps')
-    setup_group.add_argument('-eq1', '--eq1len', type=float, help='', metavar='', dest='eq1len')
-    setup_group.add_argument('-eq2', '--eq2len', type=float, help='', metavar='', dest='eq2len')
-    setup_group.add_argument('-dv', '--device', type=int, help='Index of GPU device to use for MD simulations, default=0', metavar='', dest='device')
-    setup_group.add_argument('-np', '--n_procs', type=int, help='Number of CPU cores to use for trajectory analysis, default=4', metavar='', dest='n_procs')
-    setup_group.add_argument('-vmd', '--vmdpath', type=str, help='', metavar='', dest='vmd_path', )
-    setup_group.add_argument('-n', '--n_reps', type=int, help='', metavar='', dest='n_rep')
-    setup_group.add_argument('-R', '--restart', default=False, action='store_true', help='', dest='restart')
+
+    input_group = common_parser.add_argument_group('Input Parameters')
+    input_group.add_argument(
+        '-r', 
+        '--receptor', 
+        type=str, 
+        help='Receptor file path', 
+        metavar='', 
+        dest='receptor'
+        )
+
+    input_group.add_argument(
+        '-l', 
+        '--ligand', 
+        type=str, 
+        help='Ligand file path', 
+        metavar='', 
+        dest='ligand'
+        )
+
+
+    rt = common_parser.add_argument_group('Additional Parameters for RT Method')
+    rt.add_argument(
+        '-strict', 
+        type=str, 
+        help='Fingerprint "strict" flag (default=False)', 
+        metavar='', 
+        dest='strict'
+        )
+
+
+    ps = common_parser.add_argument_group('Additional Parameters for PS Method')
+    ps.add_argument(
+        '-nr', 
+        '--num_rec', 
+        type=int, 
+        help='Number of receptor residue considered in contacts (default=25)', 
+        metavar='', 
+        dest='receptor_resnum'
+        )
+
+    ps.add_argument(
+        '-nl', 
+        '--num_lig', 
+        type=int, 
+        help='Number of ligand residue considered in contacts (default=25)', 
+        metavar='', 
+        dest='ligand_resnum'
+        )
+
+    ps.add_argument(
+        '-sr', 
+        '--shift_rec', 
+        type=int, 
+        help='Receptor Numeration Shift (default=0)', 
+        metavar='', 
+        dest='receptor_shift'
+        )
+
+    ps.add_argument(
+        '-sl', 
+        '--shift_lig', 
+        type=int, 
+        help='Ligand Numeration Shift (default=0)', 
+        metavar='', 
+        dest='ligand_shift'
+        )
+
+    ps.add_argument(
+        '-co', 
+        '--cutoff', 
+        type=float, 
+        help='Cutoff for top contacts selection (default=4.5 Å)', 
+        metavar='',
+        dest='cutoff_dist'
+        )
+
+    ps.add_argument(
+        '-namd', 
+        type=str, 
+        help='Namd installation path', 
+        metavar='', 
+        dest='namd_path'
+        )
+
+
+    setup_group = common_parser.add_argument_group('TTMD Settings')
+    setup_group.add_argument(
+        '-p', 
+        '--padding', 
+        type=float, 
+        help='Set water padding in simulation box (default=15 Å)', 
+        metavar='', 
+        dest='padding'
+        )
+
+    setup_group.add_argument(
+        '-i', 
+        '--iso', 
+        metavar='', 
+        help='If \'yes\' use cubic box (default=no)', 
+        dest='iso'
+        )
+
+    setup_group.add_argument(
+        '-temp', 
+        '--temp_ramp', 
+        type=list, 
+        help='Set temperature ramp. Format: [[tstart [K], tstop [K], tstep [int], len [ns]],[...]] (default=[[300, 450, 10, 10]])', 
+        metavar='', 
+        dest='temp_ramp'
+        )
+
+    setup_group.add_argument(
+        '-stop', 
+        '--score_stop', 
+        type=float, 
+        help='Set stop score for the simulation (default=0.05)', 
+        metavar='', 
+        dest='score_stop'
+        )
+
+    setup_group.add_argument(
+        '-range', 
+        '--stop_range', 
+        type=int, 
+        help='Set trajectory final percentage to for calculating stop score (default=10)', 
+        metavar='', 
+        dest='stop_range'
+        )
+
+    setup_group.add_argument(
+        '-ts', 
+        '--timestep', 
+        type=int, 
+        help='Set integration step for simulation [ps] (default=2)', 
+        metavar='', 
+        dest='timestep'
+        )
+
+    setup_group.add_argument(
+        '-dcdf', 
+        '--dcdfreq', 
+        type=int, 
+        help='Set simulation step savings [ps] (default=10000)', 
+        metavar='', 
+        dest='dcdfreq'
+        )
+
+    setup_group.add_argument(
+        '-min', 
+        '--minsteps', 
+        type=int, 
+        help='Set minimization step in equil1 (default=500)', 
+        metavar='', 
+        dest='minsteps'
+        )
+
+    setup_group.add_argument(
+        '-eq1', 
+        '--eq1len', 
+        type=float, 
+        help='Set equilibration 1 length [ns] (default=0.1)', 
+        metavar='', 
+        dest='eq1len'
+        )
+
+    setup_group.add_argument(
+        '-eq2', 
+        '--eq2len', 
+        type=float, 
+        help='Set equilibration 1 length [ns] (default=0.5)', 
+        metavar='', 
+        dest='eq2len'
+        )
+
+    setup_group.add_argument(
+        '-dv', 
+        '--device', 
+        type=int, 
+        help='Index of GPU device to use for MD simulations (default=0)', 
+        metavar='', 
+        dest='device'
+        )
+
+    setup_group.add_argument(
+        '-np', 
+        '--n_procs', 
+        type=int, 
+        help='Number of CPU cores to use for trajectory analysis (default=4)', 
+        metavar='', 
+        dest='n_procs'
+        )
+
+    setup_group.add_argument(
+        '-vmd', 
+        type=str, 
+        help='Vmd installation path (default=[None](autodetected)', 
+        metavar='', 
+        dest='vmd_path',
+        )
+
+    setup_group.add_argument(
+        '-n', 
+        '--n_reps', 
+        type=int, 
+        help='Number of simulation replicas (default=1)', 
+        metavar='', 
+        dest='n_rep'
+        )
+
 
     rmsd = common_parser.add_argument_group('Binding Site stability analysis')
-    rmsd.add_argument('-df', '--denaturingfactor', default=False, action='store_true', help='', dest='df')
-    rmsd.add_argument('-rmsd', '--rmsd', type=str, help='', metavar='', dest='rmsd_resids')
+    rmsd.add_argument(
+        '-df', 
+        default=False, 
+        action='store_true', 
+        help='Add binding site analysis calulations: Denaturing Factor(default=False)', 
+        dest='df'
+        )
+
+    rmsd.add_argument(
+        '-rmsd', 
+        '--rmsd_resids', 
+        type=str, 
+        help='Set resids for rmsd calculations. Format: [resnum_a, resnum_b, resnum_c, ...]', 
+        metavar='', 
+        dest='rmsd_resids'
+        )
     
+    aspect = common_parser.add_argument_group('Aspects settings')
+    aspect.add_argument(
+        '-pal', 
+        '--palette', 
+        type=str, 
+        help='Set final graphics color palette', 
+        metavar='', 
+        dest='palette'
+        )
+
     args = vars(common_parser.parse_args())
     if args['df'] == False:
         args.pop('df')
@@ -386,6 +640,7 @@ def apply_defaults(dict):
         'receptor_shift': 0,
         'ligand_resnum': 25,
         'ligand_shift': 0,
+        'cutoff_dist': 4.5,
         'padding': 15,
         'iso': 'no',
         'temp_ramp': [[300,450,10,10]],
@@ -397,11 +652,13 @@ def apply_defaults(dict):
         'eq1len': 0.1,
         'eq2len': 0.5,
         'dryer': 'yes',
-        'smooth': 200,
+        'smooth': 10,
+        'strict': True,
         'n_procs': 4,
         'device': 0,
         'n_reps': 1,
-        'df': False
+        'df': False,
+        'palette': 'default'
     }
 
     for i in defaults:

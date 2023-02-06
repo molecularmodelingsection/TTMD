@@ -3,7 +3,6 @@ import importlib
 import MDAnalysis as mda
 import oddt
 from oddt import fingerprints
-from utilities.multiprocessing import parallelizer
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -57,7 +56,7 @@ class score:
                 mp_resids.append(res)
 
         if not os.path.exists('reference_matrix.csv'):
-            output = parallelizer.run(mp_resids, self.calc_ref, self.n_procs, f'Calculating Reference Interaction Energy')
+            output = self.parallelizer.run(mp_resids, self.calc_ref, self.n_procs, f'Calculating Reference Interaction Energy')
 
             ref = np.asarray(output)
 
@@ -119,7 +118,7 @@ quit'''
 
         u = mda.Universe(topology, trajectory)
         ts = len(u.trajectory)
-        output = parallelizer.run(mp_resids, self.calc_ie, self.n_procs, f'Calculating Interaction Energy')
+        output = self.parallelizer.run(mp_resids, self.calc_ie, self.n_procs, f'Calculating Interaction Energy')
 
         os.chdir('..')
 
@@ -151,7 +150,6 @@ quit'''
             m.append(l)
             
         arr = np.array(m)
-        res = arr.split(arr, ts)#(ts, self.receptor_resnum * self.ligand_resnum)
 
         arr.tofile(f'matrix_{temperature}.csv', sep = ',')
 

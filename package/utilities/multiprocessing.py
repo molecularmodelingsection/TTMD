@@ -5,12 +5,9 @@ import tqdm
 
 class parallelizer(object):
     ### base class for multiprocessing
-    def __init__(self, args, func, n_procs, desc):
+    def __init__(self, n_procs):
         ### function initialization
         self.num_procs = n_procs
-        self.args = args
-        self.func = func
-        self.desc = desc
 
     def start(self):
         pass
@@ -18,8 +15,8 @@ class parallelizer(object):
     def end(self):
         pass
 
-    def run(args, func, num_procs, desc):
-        return MultiThreading(args, func, num_procs, desc)
+    def run(self, args, func, desc):
+        return MultiThreading(args, func, self.num_procs, desc)
         ### run takes 4 arguments:
             # list of tup(args) for each spawned process
             # name of the function to be multiprocessed

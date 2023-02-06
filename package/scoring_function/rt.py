@@ -4,7 +4,6 @@ import numpy as np
 import sklearn.metrics
 import oddt
 from oddt import fingerprints
-from utilities.multiprocessing import parallelizer
 
 
 
@@ -39,7 +38,7 @@ class score:
 
         ligand = next(oddt.toolkit.readfile('pdb', ligand_file))
         
-        fp = fingerprints.InteractionFingerprint(ligand, protein)
+        fp = fingerprints.InteractionFingerprint(ligand, protein, strict=self.strict)
 
         return fp
 
@@ -56,7 +55,7 @@ class score:
         for i,ts in enumerate(u.trajectory):
             mp_score.append([u, i])
 
-        outscore = parallelizer.run(mp_score, self.calc_ifp, self.n_procs, 'Calculating IFPs')
+        outscore = self.parallelizer.run(mp_score, self.calc_ifp, self.n_procs, 'Calculating IFPs')
 
         return outscore
 
@@ -82,7 +81,7 @@ class score:
 
         rdkitligand = next(oddt.toolkit.readfile('pdb', ligand_file))
 
-        fp = fingerprints.InteractionFingerprint(rdkitligand, rdkitprotein)
+        fp = fingerprints.InteractionFingerprint(rdkitligand, rdkitprotein, strict=self.strict)
 
         l_plif_temp=[]
 

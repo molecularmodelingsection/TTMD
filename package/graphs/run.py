@@ -1,6 +1,6 @@
 import importlib
 from matplotlib import pyplot as plt
-
+import os
 
 class graphs:
     def __init__(self, vars):
@@ -22,13 +22,14 @@ class graphs:
         for i in range(1, self.tot_frames + 1):
             self.time_list.append(round(i * self.cfactor, 2))
 
+        self.xticks = []
         self.temperature_list = [self.T_start]
-        self.done_temp = []
 
         for set in self.temperature:
+            self.xticks.append(set[0])
+            
             for i in range(1, int(set[1]/self.cfactor) + 1):
                 self.temperature_list.append(set[0])
-            self.done_temp.append(set[0])
 
 
         self.avg_list = []
@@ -42,18 +43,20 @@ class graphs:
     def draw(self):
         method_graphs = importlib.import_module(f'..{self.method}', __name__)
         graphs = method_graphs.graphs(self.__dict__)
-        
-        self.slope = graphs.slope
+
+        self.__dict__ |= graphs.__dict__
 
         if self.df == True:
             df_module = importlib.import_module('..df', __name__)
-            df_class = df_module.graphs(self.__dict__) 
+            df = df_module.graphs(self.__dict__) 
 
+        self.__dict__ |= df.__dict__
+
+        
 
     def graphic_smooth(self, value_list, i):
         self.tot_frames = int(self.check_trj_len.ns_to_frame(self.tot_len))
-
-        smooth = round(self.tot_frames*i/100)
+        smooth = round(self.tot_frames / 1000 * i)
 
         if smooth != 0:
             smooth_sim = []
