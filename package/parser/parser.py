@@ -135,7 +135,14 @@ class input_vars:
         
 
         if 'temp_ramp' in keys:
-            temp_ramp = vars['temp_ramp']
+            if not type(vars['temp_ramp']) == list:
+                try:
+                    temp_ramp = ast.literal_eval(vars['temp_ramp'])
+                except Exception:
+                    sys.exit('Check temp_ramp parameter')
+
+            else: temp_ramp = vars['temp_ramp']
+
             ramp_check = True
             for i,sublist in enumerate(temp_ramp):
                 #check if the temperature step is correctly set
@@ -194,8 +201,21 @@ class input_vars:
         if 'smooth' in keys:
             self.smooth = vars['smooth']
 
+
         if 'device' in keys:
-            self.device = vars['device']
+            if not type(vars['device']) == int or not type(vars['device']) == list:
+                try:
+                    dv = ast.literal_eval(vars['device'])
+                    self.device = dv
+
+                except Exception:
+                    sys.exit('Check device settings')
+
+            if type(dv) == int:
+                self.launch = 'serial'
+            elif type(dv) == list:
+                self.launch = 'parallel'
+            
 
         if 'n_procs' in keys:
             self.n_procs = vars['n_procs']
@@ -485,7 +505,8 @@ def cmd_parser():
     setup_group.add_argument(
         '-i', 
         '--iso', 
-        metavar='', 
+        metavar='',
+        type=str,
         help='If \'yes\' use cubic box (default=no)', 
         dest='iso'
         )
@@ -493,7 +514,7 @@ def cmd_parser():
     setup_group.add_argument(
         '-temp', 
         '--temp_ramp', 
-        type=list, 
+        type=str, 
         help='Set temperature ramp. Format: [[tstart [K], tstop [K], tstep [int], len [ns]],[...]] (default=[[300, 450, 10, 10]])', 
         metavar='', 
         dest='temp_ramp'
@@ -565,7 +586,7 @@ def cmd_parser():
     setup_group.add_argument(
         '-dv', 
         '--device', 
-        type=int, 
+        type=str, 
         help='Index of GPU device to use for MD simulations (default=0)', 
         metavar='', 
         dest='device'
@@ -594,7 +615,7 @@ def cmd_parser():
         type=int, 
         help='Number of simulation replicas (default=1)', 
         metavar='', 
-        dest='n_rep'
+        dest='n_reps'
         )
 
 
@@ -626,6 +647,8 @@ def cmd_parser():
         dest='palette'
         )
 
+
+
     args = vars(common_parser.parse_args())
     if args['df'] == False:
         args.pop('df')
@@ -656,6 +679,7 @@ def apply_defaults(dict):
         'strict': True,
         'n_procs': 4,
         'device': 0,
+        'launch': 'serial',
         'n_reps': 1,
         'df': False,
         'palette': 'default'

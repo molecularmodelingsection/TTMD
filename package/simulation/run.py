@@ -156,7 +156,7 @@ trajectoryPeriod {self.dcdfreq}
         else:
             check = self.check_trj_len.check(self.solvprmtop, wrap_trj, length)
             if check == False:
-                self.wrapping.run(self.solvpdb, trj, wrap_trj)
+                self.wrapping.run(self.solvprmtop, self.solvpdb, trj, wrap_trj)
 
         wt = os.path.abspath(wrap_trj)
 

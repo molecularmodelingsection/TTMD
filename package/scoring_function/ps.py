@@ -56,7 +56,7 @@ class score:
                 mp_resids.append(res)
 
         if not os.path.exists('reference_matrix.csv'):
-            output = self.parallelizer.run(mp_resids, self.calc_ref, self.n_procs, f'Calculating Reference Interaction Energy')
+            output = self.parallelizer.run(mp_resids, self.calc_ref, f'Calculating Reference Interaction Energy')
 
             ref = np.asarray(output)
 
@@ -118,7 +118,7 @@ quit'''
 
         u = mda.Universe(topology, trajectory)
         ts = len(u.trajectory)
-        output = self.parallelizer.run(mp_resids, self.calc_ie, self.n_procs, f'Calculating Interaction Energy')
+        output = self.parallelizer.run(mp_resids, self.calc_ie, f'Calculating Interaction Energy')
 
         os.chdir('..')
 

@@ -4,7 +4,8 @@ import numpy as np
 import sklearn.metrics
 import oddt
 from oddt import fingerprints
-
+from oddt.toolkits.rdk import Molecule
+import time
 
 
 class score:
@@ -47,19 +48,22 @@ class score:
     def score(self, topology, trajectory, temperature):
         if not os.path.exists('frame_pdbs'):
             os.mkdir('frame_pdbs')
-
+            
         u = mda.Universe(topology, trajectory)
-
+        
         mp_score = []
 
         for i,ts in enumerate(u.trajectory):
             mp_score.append([u, i])
 
-        outscore = self.parallelizer.run(mp_score, self.calc_ifp, self.n_procs, 'Calculating IFPs')
+        outscore = self.parallelizer.run(mp_score, self.calc_ifp, 'Calculating IFPs')
 
         return outscore
 
-        
+        # 135 rdkit fuori e oddt dentro
+        # 85 normal
+        # 481 rdkit e oddt dentro
+
     
     def calc_ifp(self, u, i):
         u.trajectory[i]
@@ -76,12 +80,12 @@ class score:
         with mda.Writer(ligand_file, u_ligand.n_atoms) as w:
             w.write(u_ligand)
 
-        rdkitprotein = next(oddt.toolkit.readfile('pdb', protein_file))
-        rdkitprotein.protein = True
+        p = next(oddt.toolkit.readfile('pdb', protein_file))
+        p.protein = True
 
-        rdkitligand = next(oddt.toolkit.readfile('pdb', ligand_file))
+        l = next(oddt.toolkit.readfile('pdb', ligand_file))
 
-        fp = fingerprints.InteractionFingerprint(rdkitligand, rdkitprotein, strict=self.strict)
+        fp = fingerprints.InteractionFingerprint(l, p, strict=self.strict)
 
         l_plif_temp=[]
 
