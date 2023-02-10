@@ -4,11 +4,13 @@ import os
 import sys
 import glob
 import importlib
-import multiprocessing
 import numpy as np
+import multiprocessing
 from utilities import header
+from utilities import utils
 from utilities import multiprocessing as mp
 import parser.parser as parser
+from replica import REPLICA
 import time
 
 
@@ -29,10 +31,9 @@ divider = '\n██████████████████████�
 class RUN:
     def __init__(self, vars):
         self.__dict__ = vars
-        self.resume = resume
 
 
-    def run(self):
+    def run(self, vars):
         self.temperature = []
         self.tot_len = 0
 
@@ -50,98 +51,74 @@ class RUN:
         self.T_start = self.temperature[0][0]
         self.T_stop = self.temperature[-1][0]
 
+        if self.launch == 'serial':
+            self.serial(vars)
 
-        REPLICA_class = REPLICA(VARS)
+        elif self.launch == 'parallel':
+            self.parallel(vars)
+
+
+
+    def serial(self, vars):
         for i in range(1, self.n_reps + 1):
+            REPLICA_class = REPLICA(self.device, VARS)
+            self.replica_run(i, self.device, vars)
 
-            print(divider, f'\nRunning Replica {i}\n', divider)
 
-            if not os.path.exists(f'RUN_{i}'):
-                os.system(f'mkdir RUN_{i}')
 
-            os.chdir(f'RUN_{i}')
+    def parallel(self, vars):
+        dv = {}
+        for i,n in enumerate(self.device):
+            dv[i+1] = n
 
-            if not os.path.exists('__ENDED__'):
+        args = []
+        for i in range(1, self.n_reps + 1):
+            args.append([i, dv, vars])
+        print(len(args))
 
-                REPLICA_class = REPLICA(VARS)
+        if __name__ == '__main__':
+            parallelizer = mp.parallelizer(len(self.device))
+            parallelizer.run(args, replica_run, 'running')
 
-                REPLICA_class.prepare()
 
-                REPLICA_class.equil1()
 
-                REPLICA_class.equil2()
+def replica_run(i, dv, vars):
+    proc = multiprocessing.current_process()._identity
+    id = list(proc)[0]
 
-                REPLICA_class.calc_reference()
+    device = dv[id]
 
-                REPLICA_class.simulation()
+    print(divider, f'\nRunning Replica {i}\n', divider)
 
-                ms, rmsd_slope, df_protein, df_prot_h2o = REPLICA_class.graphs()
+    if not os.path.exists(f'RUN_{i}'):
+        os.system(f'mkdir RUN_{i}')
 
-                with open('__ENDED__', 'w') as f:
-                    f.write(f'''MS = {ms}
+    os.chdir(f'RUN_{i}')
+
+    if not os.path.exists('__ENDED__'):
+        print(f'replica {i}, device {device}')
+        REPLICA_class = REPLICA(device, vars)
+
+        REPLICA_class.prepare()
+
+        REPLICA_class.equil1()
+
+        REPLICA_class.equil2()
+
+        REPLICA_class.calc_reference()
+
+        REPLICA_class.simulation()
+
+        ms, rmsd_slope, df_protein, df_prot_h2o = REPLICA_class.graphs()
+
+        with open('__ENDED__', 'w') as f:
+            f.write(f'''MS = {ms}
 Binding Site RMSD slope = {rmsd_slope}
 
 DF protein binding site = {df_protein}
 DF binding site - water = {df_prot_h2o}''')
 
-            os.chdir('..')
-
-
-
-class REPLICA:
-    def __init__(self, vars):
-        self.__dict__ = vars
-        self.parallelizer = mp.parallelizer(self.n_procs)
-        self.check_trj_len = utils.check_trj_len(self.__dict__)
-
-        palette_module = importlib.import_module('..palette', 'utilities.')
-        self.colors = getattr(palette_module, vars['palette'])
-
-
-    def prepare(self):
-        import simulation.system_preparation.system_prep as prep
-        prepare_system = prep.system_preparation(self.__dict__)
-        prepare_system.prepare()
-        self.__dict__ |= prepare_system.__dict__
-        wrapping = importlib.import_module('..wrapping', 'utilities.')
-        self.wrapping = wrapping.wrapping(self.__dict__)
-
-
-    def equil1(self):
-        import simulation.equil.equil1 as eq1
-        equil1 = eq1.equil1(self.__dict__)
-        equil1.run()
-        self.__dict__ |= equil1.__dict__
-
-
-    def equil2(self):
-        import simulation.equil.equil2 as eq2
-        equil2 = eq2.equil2(self.__dict__)
-        equil2.run()
-        self.__dict__ |= equil2.__dict__
-
-
-    def calc_reference(self):
-        from scoring_function import run
-        scoring = run.scoring(self.__dict__)
-        scoring.run()
-        self.__dict__ |= scoring.__dict__
-
-
-    def simulation(self):
-        from simulation import run
-        simulation = run.simulation(self.__dict__)
-        simulation.run()
-        self.__dict__ |= simulation.__dict__
-
-
-    def graphs(self):
-        from graphs import run
-        graphs = run.graphs(self.__dict__)
-        graphs.draw()
-        self.__dict__ |= graphs.__dict__
-
-        return self.ms, self.rmsd_slope, self.df_protein, self.df_prot_h2o
+    os.chdir('..')
 
 
         
@@ -150,7 +127,7 @@ class REPLICA:
 if __name__ == '__main__':
     multiprocessing.set_start_method("spawn")
 
-    header.header()
+    # header.header()
 
     VARS = parser.input_vars().parser()
 
@@ -163,10 +140,7 @@ if __name__ == '__main__':
             f.write(line + '\n')
     print('\n#######################################################\n')
 
-
-    from utilities import utils
-    resume = utils.resume(VARS['device']).resume
     pid = utils.pid()
     
     RUN_class = RUN(VARS)
-    RUN_class.run()
+    RUN_class.run(VARS)
