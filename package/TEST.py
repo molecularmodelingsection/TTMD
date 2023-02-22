@@ -131,7 +131,7 @@ DF binding site - water = {df_prot_h2o}''')
 if __name__ == '__main__':
     multiprocessing.set_start_method("spawn")
 
-    # header.header()
+    header.header()
 
     VARS = parser.input_vars().parser()
 
