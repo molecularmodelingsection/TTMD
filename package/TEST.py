@@ -62,7 +62,7 @@ class RUN:
     def serial(self, vars):
         for i in range(1, self.n_reps + 1):
             REPLICA_class = REPLICA(self.device, VARS)
-            self.replica_run(i, self.device, vars)
+            replica_run(i, self.device, vars)
 
 
 
@@ -83,10 +83,14 @@ class RUN:
 
 
 def replica_run(i, dv, vars):
-    proc = multiprocessing.current_process()._identity
-    id = list(proc)[0]
+    if vars['launch'] == 'parallel':
+        proc = multiprocessing.current_process()._identity
+        id = list(proc)[0]
 
-    device = dv[id]
+        device = dv[id]
+
+    elif vars['launch'] == 'serial':
+        device = dv
 
     print(divider, f'\nRunning Replica {i}\n', divider)
 
