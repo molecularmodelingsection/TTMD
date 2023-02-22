@@ -1,4 +1,5 @@
 import os
+import MDAnalysis as mda
 
 class prepare:
     def __init__(self, dict):
@@ -139,10 +140,33 @@ exit""")
 
         receptor_top = os.path.abspath('receptor.prmtop')
         ligand_top = os.path.abspath('ligand.prmtop')
-        complprmtop = os.path.abspath('complex.prmtop')
         solvpdb = os.path.abspath('solv.pdb')
         solvprmtop = os.path.abspath('solv.prmtop')
         
+
+
+        u = mda.Universe(self.receptor)
+        sel = u.select_atoms('protein')
+        with mda.Writer('dry_protein.pdb', sel.n_atoms) as W:
+            W.write(sel)
+
+        dry_complex = f'''source leaprc.protein.ff14SB
+source leaprc.gaff
+loadamberparams ligand.frcmod
+loadoff atomic_ions.lib
+PROT = loadpdb {self.receptor}
+LIG = loadpdb {self.ligand}
+COMPL = combine{{PROT LIG}}
+saveAmberParm COMPL dry_complex.prmtop dry_complex.inpcrd
+quit'''
+
+        with open("dry_complex.in", 'w') as f:
+            f.write(dry_complex)
+ 
+        os.system("tleap -f dry_complex.in")
+
+        complprmtop = os.path.abspath('dry_complex.prmtop')
+
         update = {
             'receptor_top': receptor_top,
             'ligand_top': ligand_top,

@@ -1,5 +1,6 @@
 import os
 from rdkit import Chem
+import MDAnalysis as mda
 
 
 
@@ -22,6 +23,7 @@ COMPL = combine{{PROT LIG}}
 saveAmberParm LIG ligand.prmtop ligand.inpcrd
 saveAmberParm PROT protein.prmtop protein.inpcrd
 saveAmberParm COMPL complex.prmtop complex.inpcrd
+savepdb COMPL complex.pdb
 solvatebox COMPL TIP3PBOX {self.padding} {self._iso}
 {ions_rand}
 savepdb COMPL solv.pdb
@@ -147,10 +149,32 @@ exit""")
                 else:
                     exit("Error: system charge is not 0!")
         
-        complprmtop = os.path.abspath('complex.prmtop')
         solvpdb = os.path.abspath('solv.pdb')
         solvprmtop = os.path.abspath('solv.prmtop')
 
+
+        u = mda.Universe(self.receptor)
+        sel = u.select_atoms('protein')
+        with mda.Writer('dry_protein.pdb', sel.n_atoms) as W:
+            W.write(sel)
+
+        dry_complex = f'''source leaprc.protein.ff14SB
+source leaprc.gaff
+loadamberparams ligand.frcmod
+loadoff atomic_ions.lib
+PROT = loadpdb {self.receptor}
+LIG = loadmol2 ligand_charged.mol2
+COMPL = combine{{PROT LIG}}
+saveAmberParm COMPL dry_complex.prmtop dry_complex.inpcrd
+quit'''
+
+        with open("dry_complex.in", 'w') as f:
+            f.write(dry_complex)
+ 
+        os.system("tleap -f dry_complex.in")
+
+        complprmtop = os.path.abspath('dry_complex.prmtop')
+        
         update = {
             'complprmtop': complprmtop,
             'solvpdb': solvpdb,
