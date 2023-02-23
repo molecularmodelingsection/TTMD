@@ -15,9 +15,14 @@ def profile_graph(done_temp, avg_list, title, ylabel, name, colors, ylim=None, s
     axs.scatter(done_temp, avg_list, c=c0)
     first_last_score = [slope_start, avg_list[-1]]
 
-    f = np.poly1d(np.polyfit(first_last_t, first_last_score, 1))
-    slope, intercept, r_value, p_value, std_err = linregress(first_last_t, first_last_score)
-    axs.plot(done_temp, f(done_temp), color=c1, ls='--', label="MS = {:.5f}".format(slope))
+    try:
+        f = np.poly1d(np.polyfit(first_last_t, first_last_score, 1))
+        slope, intercept, r_value, p_value, std_err = linregress(first_last_t, first_last_score)
+        axs.plot(done_temp, f(done_temp), color=c1, ls='--', label="MS = {:.5f}".format(slope))
+        
+    except Exception:
+        slope = 'Impossible to calculate MS: required at least 2 TTMD steps'
+
     axs.set_title(title)
     axs.set_xlabel('Temperature (K)')
     axs.set_ylabel(ylabel)

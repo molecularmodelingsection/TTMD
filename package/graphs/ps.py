@@ -19,7 +19,7 @@ class graphs:
             topology = self.complprmtop
 
         elif self.dryer == 'no':
-            topology = self.solv.prmtop
+            topology = self.solvprmtop
 
         self.rmsd = self.calcRMSD(topology, self.final_dcd)
 

@@ -28,13 +28,16 @@ class simulation:
             trj = self.run_simulation(i,set)
             wrap_trj = self.wrap_simulation(trj, set)
 
-            wrap_trj = self.wrapping.dry_trj(wrap_trj, set)
+            if self.dryer == 'yes':
+                dry_trj = self.wrapping.dry_trj(wrap_trj, set)
+                traj = os.path.abspath(dry_trj)
 
-            trj = os.path.abspath(wrap_trj)
+            elif self.dryer == 'no':
+                traj = os.path.abspath(wrap_trj)
 
             avg = self.score_simulation(trj, i, set)
 
-            trj_list.append(trj)
+            trj_list.append(traj)
 
             self.done_temp.append(set[0])
 
@@ -211,7 +214,7 @@ trajectoryPeriod {self.dcdfreq}
         else:
             check = self.check_trj_len.check(topology, finaltrj, length)
         
-        self.wrapping.merge_trj(self.complprmtop, trj_list, finaltrj, remove=False)
+        self.wrapping.merge_trj(topology, trj_list, finaltrj, remove=False)
         
         return os.path.abspath(finaltrj)
 

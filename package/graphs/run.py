@@ -48,9 +48,13 @@ class graphs:
 
         if self.df == True:
             df_module = importlib.import_module('..df', __name__)
-            df = df_module.graphs(self.__dict__) 
+            df = df_module.graphs(self.__dict__)
 
-        self.__dict__ |= df.__dict__
+            self.__dict__ |= df.__dict__
+
+        elif self.df == False:
+            self.df_protein = 'Not calculated'
+            self.df_prot_h2o = 'Not calculated'
 
         
 

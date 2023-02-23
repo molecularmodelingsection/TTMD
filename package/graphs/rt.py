@@ -18,7 +18,7 @@ class graphs:
             topology = self.complprmtop
 
         elif self.dryer == 'no':
-            topology = self.solv.prmtop
+            topology = self.solvprmtop
 
         self.rmsd = calcRMSD(topology, self.final_dcd)
 
@@ -26,6 +26,7 @@ class graphs:
             self.bsite, self.avg_rmsd = bsite_rmsd(self.rmsd_resids, self.solvprmtop, self.done_temp, self.stop_range)
             self.rmsd_slope = self.rmsd_profile()
         else:
+            self.rmsd_slope = 'Not calculated'
             self.bsite = 'None'
 
         self.titration_timeline()

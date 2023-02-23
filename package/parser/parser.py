@@ -329,12 +329,7 @@ class input_vars:
 
         if self.method == 'rt':
             if 'strict' in keys:
-                try:
-                    k = ast.literal_eval(vars['strict'])
-                    self.strict = k
-
-                except Exception:
-                    sys.exit('Please check strict option')
+                self.strict = vars['strict']
                     
         if 'palette' in keys:
             self.palette = vars['palette']

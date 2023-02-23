@@ -19,35 +19,6 @@ class wrapping:
 
 
 
-#     def run(self, prmtop, pdb, trajectory, wrap_trj):
-#         tcl = f'''mol new {pdb}
-# mol new {prmtop}
-# mol addfile {trajectory} type dcd first 0 last -1 step 1 filebonds 1 autobonds 1 waitfor all
-# package require pbctools
-# set num_steps [molinfo 1 get numframes]
-# for {{set frame 0}} {{$frame < $num_steps}} {{incr frame}} {{
-#         set c_ppdb [measure center [atomselect 0 "protein"]]
-# 	set c_updb [measure center [atomselect 0 "all"]]
-#         set c_pdcd [measure center [atomselect 1 "protein" frame $frame]]
-# 	# compute the transformation
-# 	set unitc_vec [vecsub $c_updb $c_ppdb]
-# 	set trans_vec [vecsub $c_ppdb $c_pdcd]
-# 	set all [atomselect 1 "all" frame $frame]	
-# 	$all moveby $trans_vec
-# 	pbc wrap -first $frame -last $frame -compound res -center bb -centersel "protein" -shiftcenter $unitc_vec
-# 	#pbc wrap -first $frame -last $frame -compound res -center bb -centersel "protein" 
-# 	#pbc wrap -first $frame -last $frame -compound res -center unitcell --> WRONG
-# }}
-# animate write dcd {wrap_trj}
-# quit'''
-
-#         with open('wrap.tcl', 'w') as tcl:
-#             tcl.write(tcl)
-
-#         os.system('vmd -dispdev text -e tcl.tcl')
-
-
-
     def merge_trj(self, topology, trj_list, trj_name, remove=bool):
         u = mda.Universe(topology, trj_list)
 
