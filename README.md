@@ -28,5 +28,5 @@ To test the code, an example system is provided in the **test** directory.
 
 Recent applications of the TTMD code:
   **"PROTAC-Design-Evaluator (PRODE) : An Advanced Method for in-silico PROTAC design"**  
-  A S Ben Geoffrey, Deepak Agrawal, Nagaraj M Kulkarni, Rajappan Vetrivel, Kishan Gurram  (preprint on BioRxiv)
+  A S Ben Geoffrey, Deepak Agrawal, Nagaraj M Kulkarni, Rajappan Vetrivel, Kishan Gurram  (preprint on BioRxiv)  
   https://doi.org/10.1101/2023.06.12.544569
