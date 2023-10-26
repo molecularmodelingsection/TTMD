@@ -33,4 +33,8 @@ Recent applications of the TTMD code:
 
   **"PROTAC-Design-Evaluator (PRODE) : An Advanced Method for in-silico PROTAC design"**  
   A S Ben Geoffrey, Deepak Agrawal, Nagaraj M Kulkarni, Rajappan Vetrivel, Kishan Gurram  (preprint on BioRxiv)  
-  https://doi.org/10.1101/2023.06.12.544569
+  https://doi.org/10.1101/2023.06.12.544569  
+  **"A comprehensive study of SARS-CoV-2 main protease (Mpro) inhibitor-resistant mutants selected in a VSV-based system"**
+  F Costacurta et al. (preprint on BioRxiv)  
+  https://doi.org/10.1101/2023.09.22.558628  
+  
