@@ -5,10 +5,10 @@ Reference publications:
   1) **"Qualitative Estimation of Protein-Ligand Complex Stability through Thermal Titration Molecular Dynamics (TTMD) Simulations."**  
   Pavan M., Menin S., Bassani D., Sturlese M., Moro S. (published on *Journal of Chemical Information and Modeling*)  
   https://doi.org/10.1021/acs.jcim.2c00995  
-  2) **"Thermal Titration Molecular Dynamics (TTMD): Not Your Usual Post-Docking Refinement"**  
+  2) **"Thermal Titration Molecular Dynamics (TTMD): Not Your Usual Post-Docking Refinement"**
   Menin S., Pavan M., Salmaso V., Sturlese M., Moro S. (published on *International Journal of Molecular Sciences*)  
   https://doi.org/10.3390/ijms24043596
-  3) **"Thermal Titration Molecular Dynamics (TTMD): Shedding Light on the Stability of RNA-Small Molecule Complexes"**
+  4) **"Thermal Titration Molecular Dynamics (TTMD): Shedding Light on the Stability of RNA-Small Molecule Complexes"**
   Dodaro A., Pavan M., Menin S., Salmaso V., Sturlese M., Moro S. (published on *Frontiers in Molecular Biosciences*)
   https://doi.org/10.3389/fmolb.2023.1294543
 
