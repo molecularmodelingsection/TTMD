@@ -97,7 +97,7 @@ def wrap_blocks(first, last, topology, trajectory):
     block_name = f'block_{first}_{last}.dcd'
     with mda.Writer(block_name, u.atoms.n_atoms) as W:
         for ts in u.trajectory[first:last]:
-            old_rmsd, new_rmsd = align.alignto(u, ref, select='protein and backbone', weights='mass')
+            old_rmsd, new_rmsd = align.alignto(u, ref, select='nucleicbackbone', weights='mass')
             W.write(u.atoms)
 
     return block_name

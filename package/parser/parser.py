@@ -46,6 +46,9 @@ class input_vars:
         elif vars['method'] == 'ps':
             self.method = 'ps'
 
+        elif vars['method'] == 'apo':
+            self.method = 'apo'
+
         else:
             try:
                 m = vars['method']
@@ -78,7 +81,7 @@ class input_vars:
             sys.exit(0)
             #check existence and correct format of protein file
 
-        if self.method == 'ps':
+        if self.method == 'ps' or self.method == 'apo':
             if 'receptor_resnum' in keys:
                 self.receptor_resnum = vars['receptor_resnum']
 
@@ -90,20 +93,21 @@ class input_vars:
 
         ### LIGAND
         #check existence and correct format of ligand file
-        if not 'ligand' in keys:
-            print('Ligand path missing!\n(check your config_params)')
-            sys.exit(0)
+        if not self.method == 'apo':
+            if not 'ligand' in keys:
+                print('Ligand path missing!\n(check your config_params)')
+                sys.exit(0)
 
-        try:
-            self.ligand = os.path.abspath(vars['ligand'])
+            try:
+                self.ligand = os.path.abspath(vars['ligand'])
 
-        except Exception:
-            print('Ligand path missing!\n(check your config_params)')
-            sys.exit(0)
+            except Exception:
+                print('Ligand path missing!\n(check your config_params)')
+                sys.exit(0)
 
-        if not os.path.exists(self.ligand):
-            print(f'{self.ligand} is not a valid path')
-            sys.exit(0)
+            if not os.path.exists(self.ligand):
+                print(f'{self.ligand} is not a valid path')
+                sys.exit(0)
 
         if self.method == 'rt':
             if self.ligand[-4:] != 'mol2':
@@ -203,7 +207,8 @@ class input_vars:
 
 
         if 'device' in keys:
-            if not type(vars['device']) == int or not type(vars['device']) == list:
+            t = type(vars['device'])
+            if not t == int and not t == list:
                 try:
                     dv = ast.literal_eval(vars['device'])
                     self.device = dv
@@ -212,12 +217,13 @@ class input_vars:
                     sys.exit('Check device settings')
 
             else:
-                dv = vars['device']
+                self.device = vars['device']
 
-            if type(dv) == int:
+            if type(self.device) == int:
                 self.launch = 'serial'
-            elif type(dv) == list:
+            elif type(self.device) == list:
                 self.launch = 'parallel'
+
             
 
         if 'n_procs' in keys:
@@ -314,17 +320,19 @@ class input_vars:
 
 
         if 'df' in keys:
-            if vars['method'] == 'rt':
+            if vars['method'] == 'rt' or vars['method'] == 'apo':
                 if 'rmsd_resids' in self.__dict__:
                     self.df = True
                 else:
                     self.df = False
 
             if vars['method'] == 'ps':
+                self.df = True
                 if 'rmsd_resids' not in self.__dict__:
-                    self.top_contacts = ''
-                    self.df = True
-                    self.rmsd_resids = self.top_contacts
+                    self.are_rmsd_resids = False
+
+                else:
+                    self.are_rmsd_resids = True
 
 
         if self.method == 'rt':
@@ -399,7 +407,7 @@ def cmd_parser():
 
     common_parser.add_argument(
         '-m', '--method',
-        help='Choices [rt | ps]',
+        help='Choices [ rt | ps | apo ]',
         metavar='',
         dest='method'
         )
@@ -435,12 +443,12 @@ def cmd_parser():
         )
 
 
-    ps = common_parser.add_argument_group('Additional Parameters for PS Method')
+    ps = common_parser.add_argument_group('Additional Parameters for PS Method (and APO method)')
     ps.add_argument(
         '-nr', 
         '--num_rec', 
         type=int, 
-        help='Number of receptor residue considered in contacts (default=25)', 
+        help='Number of receptor residue considered in contacts (default=25) (APO)', 
         metavar='', 
         dest='receptor_resnum'
         )
@@ -458,7 +466,7 @@ def cmd_parser():
         '-sr', 
         '--shift_rec', 
         type=int, 
-        help='Receptor Numeration Shift (default=0)', 
+        help='Receptor Numeration Shift (default=0) (APO)', 
         metavar='', 
         dest='receptor_shift'
         )
@@ -583,8 +591,10 @@ def cmd_parser():
 
     setup_group.add_argument(
         '-dv', 
-        '--device', 
-        type=str, 
+        '--device',
+        type=int,
+        action='extend',
+        nargs='*',
         help='Index of GPU device to use for MD simulations (default=0)', 
         metavar='', 
         dest='device'
@@ -648,6 +658,7 @@ def cmd_parser():
 
 
     args = vars(common_parser.parse_args())
+
     if args['df'] == False:
         args.pop('df')
 

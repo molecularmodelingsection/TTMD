@@ -57,7 +57,7 @@ PME on
 cutoff 9.0
 switching on
 switchDistance 7.5
-atomRestraint "protein or resname LIG" setpoints 5@0
+atomRestraint "nucleic or resname LIG" setpoints 5@0
 trajectoryFile equil1.dcd
 trajectoryPeriod {self.dcdfreq}
 boxSize {dimension}""")

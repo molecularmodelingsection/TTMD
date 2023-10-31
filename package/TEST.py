@@ -67,6 +67,7 @@ class RUN:
 
 
     def parallel(self, vars):
+        print(self.device)
         dv = {}
         for i,n in enumerate(self.device):
             dv[i+1] = n
@@ -74,7 +75,6 @@ class RUN:
         args = []
         for i in range(1, self.n_reps + 1):
             args.append([i, dv, vars])
-        print(len(args))
 
         if __name__ == '__main__':
             parallelizer = mp.parallelizer(len(self.device))
@@ -120,7 +120,7 @@ def replica_run(i, dv, vars):
 Binding Site RMSD slope = {rmsd_slope}
 
 DF protein binding site = {df_protein}
-DF binding site - water = {df_prot_h2o}''')
+DF binding site - water = {df_prot_h2o}\n\n\n''')
 
     os.chdir('..')
 
@@ -131,7 +131,7 @@ DF binding site - water = {df_prot_h2o}''')
 if __name__ == '__main__':
     multiprocessing.set_start_method("spawn")
 
-    # header.header()
+    header.header()
 
     VARS = parser.input_vars().parser()
 

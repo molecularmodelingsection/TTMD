@@ -29,13 +29,15 @@ class simulation:
             wrap_trj = self.wrap_simulation(trj, set)
 
             if self.dryer == 'yes':
+                top = self.complprmtop
                 dry_trj = self.wrapping.dry_trj(wrap_trj, set)
                 traj = os.path.abspath(dry_trj)
 
             elif self.dryer == 'no':
+                top = self.solvprmtop
                 traj = os.path.abspath(wrap_trj)
 
-            avg = self.score_simulation(trj, i, set)
+            avg = self.score_simulation(top, traj, i, set)
 
             trj_list.append(traj)
 
@@ -74,7 +76,7 @@ class simulation:
             print(f'    run_{temp}.dcd found')
             
             check = self.check_trj_len.check(self.solvprmtop, f'run_{temp}.dcd', length)
-            
+
             if check == False:
                 if self.resume == True:
                     print('    Resuming trajectory')
@@ -167,11 +169,11 @@ trajectoryPeriod {self.dcdfreq}
 
 
 
-    def score_simulation(self, wrap_trj, i, set):
+    def score_simulation(self, top, trj, i, set):
         temp, length = set
 
         if not os.path.exists(f'score_{temp}'):
-            outscore = self.score(self.complprmtop, wrap_trj, temp)
+            outscore = self.score(top, trj, temp)
 
             with open(f'score_{temp}', 'w') as f:
                 for s in outscore:

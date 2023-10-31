@@ -13,9 +13,7 @@ source leaprc.gaff
 loadoff atomic_ions.lib
 loadamberparams frcmod.ionsjc_tip3p
 REC = loadpdb {self.receptor}
-LIG = loadpdb {self.ligand}
-COMPL = combine{{REC LIG}}
-saveAmberParm LIG ligand.prmtop ligand.inpcrd
+COMPL = combine{{REC}}
 saveAmberParm REC receptor.prmtop protein.inpcrd
 saveAmberParm COMPL complex.prmtop complex.inpcrd
 solvatebox COMPL TIP3PBOX {self.padding} {self._iso}
@@ -139,7 +137,6 @@ exit""")
                     exit("Error: system charge is not 0!")
 
         receptor_top = os.path.abspath('receptor.prmtop')
-        ligand_top = os.path.abspath('ligand.prmtop')
         solvpdb = os.path.abspath('solv.pdb')
         solvprmtop = os.path.abspath('solv.prmtop')
         
@@ -147,20 +144,14 @@ exit""")
 
         u = mda.Universe(self.receptor)
         sel = u.select_atoms('protein')
-        with mda.Writer('dry_receptor.pdb', sel.n_atoms) as W:
+        with mda.Writer('dry_protein.pdb', sel.n_atoms) as W:
             W.write(sel)
 
-        u = mda.Universe(self.ligand)
-        sel = u.select_atoms('protein')
-        with mda.Writer('dry_ligand.pdb', sel.n_atoms) as W:
-            W.write(sel)
-            
         dry_complex = f'''source leaprc.protein.ff14SB
 source leaprc.gaff
 loadoff atomic_ions.lib
-PROT = loadpdb dry_receptor.pdb
-LIG = loadpdb dry_ligand.pdb
-COMPL = combine{{PROT LIG}}
+PROT = loadpdb {self.receptor}
+COMPL = combine{{PROT}}
 saveAmberParm COMPL dry_complex.prmtop dry_complex.inpcrd
 quit'''
 
@@ -173,15 +164,9 @@ quit'''
 
         update = {
             'receptor_top': receptor_top,
-            'ligand_top': ligand_top,
             'complprmtop': complprmtop,
             'solvpdb': solvpdb,
             'solvprmtop': solvprmtop
             }
 
         return update
-        
-        
-def printdict(obj):
-    for i in obj.__dict__:
-        print(f'{i} = {obj.__dict__[i]}')

@@ -127,4 +127,5 @@ class resids:
                     'truenum':z
                     }
 
+        print(dict)
         return dict

@@ -2,9 +2,10 @@ import os
 import MDAnalysis as mda
 import numpy as np
 import sklearn.metrics
-import oddt
-from oddt import fingerprints
-from oddt.toolkits.rdk import Molecule
+import prolif
+from prolif import Molecule
+from prolif.fingerprint import Fingerprint
+from prolif.utils import to_countvectors
 import time
 
 
@@ -14,41 +15,35 @@ class score:
 
 
     def reference(self):
-        if not os.path.exists('reference_protein.pdb') or not os.path.exists('reference_ligand.pdb'):
+        u = mda.Universe(self.solvprmtop, self.solvpdb)
+        protein = u.select_atoms('nucleic')
+        ligand = u.select_atoms('resname LIG')
 
-            u = mda.Universe(self.solvpdb)
-            protein = u.select_atoms('protein')
-            ligand = u.select_atoms('resname LIG')
+        prot_ifp = Molecule.from_mda(protein)
+        lig_ifp = Molecule.from_mda(ligand)
 
-            with mda.Writer('reference_protein.pdb', protein.n_atoms) as W:
-                W.write(protein)
+        fp = Fingerprint(count=True, vicinity_cutoff=100000000000000)
+        ifp = fp.generate(lig_ifp, prot_ifp, residues='all', metadata=True)
 
-            with mda.Writer('reference_ligand.pdb', ligand.n_atoms) as W:
-                W.write(ligand)
+        dataframe = prolif.to_dataframe({0: ifp}, fp.interactions, drop_empty=False)
+        row = list(dataframe.itertuples(index=False))[0]
+        array = np.array(row)
 
-        ref = self.ref_fingerprint('reference_protein.pdb', 'reference_ligand.pdb')
 
-        update = {'ref': ref}
+        # fp = Fingerprint(vicinity_cutoff=1000000000000000, count=True)
+        # fp.run_from_iterable([lig_ifp], prot_ifp)
+
+        # dataframe = fp.to_dataframe(drop_empty=False, count=True)
+            
+        # row = list(dataframe.itertuples(index=False))[0]
+        # array = np.array(row)
+
+        update = {'ref': array}
         return update
-
-
-
-    def ref_fingerprint(self, protein_file, ligand_file):
-        protein = next(oddt.toolkit.readfile('pdb', protein_file))
-        protein.protein = True
-
-        ligand = next(oddt.toolkit.readfile('pdb', ligand_file))
-        
-        fp = fingerprints.InteractionFingerprint(ligand, protein, strict=self.strict)
-
-        return fp
 
         
 
     def score(self, topology, trajectory, temperature):
-        if not os.path.exists('frame_pdbs'):
-            os.mkdir('frame_pdbs')
-            
         u = mda.Universe(topology, trajectory)
         
         mp_score = []
@@ -60,37 +55,29 @@ class score:
 
         return outscore
 
-        # 135 rdkit fuori e oddt dentro
-        # 85 normal
-        # 481 rdkit e oddt dentro
 
-    
+
     def calc_ifp(self, u, i):
         u.trajectory[i]
 
-        u_protein = u.select_atoms('protein')
-        protein_file = f'frame_pdbs/protein_{i}.pdb'
+        protein = u.select_atoms('nucleic')
+        ligand = u.select_atoms('resname LIG')
 
-        u_ligand = u.select_atoms('resname LIG')
-        ligand_file = f'frame_pdbs/ligand_{i}.pdb'
+        prot_ifp = Molecule.from_mda(protein)
+        lig_ifp = Molecule.from_mda(ligand)
 
-        with mda.Writer(protein_file, u_protein.n_atoms) as w:
-            w.write(u_protein)
+        fp = Fingerprint(count=True, vicinity_cutoff=100000000000000)
+        ifp = fp.generate(lig_ifp, prot_ifp, residues='all', metadata=True)
 
-        with mda.Writer(ligand_file, u_ligand.n_atoms) as w:
-            w.write(u_ligand)
+        dataframe = prolif.to_dataframe({0: ifp}, fp.interactions, drop_empty=False)
+        row = list(dataframe.itertuples(index=False))[0]
+        array = np.array(row)
 
-        p = next(oddt.toolkit.readfile('pdb', protein_file))
-        p.protein = True
-
-        l = next(oddt.toolkit.readfile('pdb', ligand_file))
-
-        fp = fingerprints.InteractionFingerprint(l, p, strict=self.strict)
 
         l_plif_temp=[]
 
         l_plif_temp.append(self.ref)
-        l_plif_temp.append(fp)
+        l_plif_temp.append(array)
         matrix = np.stack(l_plif_temp, axis=0)
         idx = np.argwhere(np.all(matrix[..., :] == 0, axis=0))
         matrix_dense = np.delete(matrix, idx, axis=1)
@@ -99,7 +86,6 @@ class score:
         sim_giovanni=float(sklearn.metrics.pairwise.cosine_similarity(x, y))
         sim = round(sim_giovanni * -1,2)
 
-        os.system(f'rm -r {protein_file} {ligand_file}')
 
         return sim
 

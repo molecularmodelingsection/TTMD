@@ -12,6 +12,8 @@ class prepare:
 
     def complex_in(self, ions_rand):
         complexin = f'''source leaprc.protein.ff14SB
+source leaprc.DNA.OL15
+source leaprc.RNA.OL3
 source leaprc.water.tip3p
 source leaprc.gaff
 loadamberparams ligand.frcmod
@@ -154,11 +156,13 @@ exit""")
 
 
         u = mda.Universe(self.receptor)
-        sel = u.select_atoms('protein')
+        sel = u.select_atoms('nucleic')
         with mda.Writer('dry_protein.pdb', sel.n_atoms) as W:
             W.write(sel)
 
         dry_complex = f'''source leaprc.protein.ff14SB
+source leaprc.DNA.OL15
+source leaprc.RNA.OL3
 source leaprc.water.tip3p
 source leaprc.gaff
 loadamberparams ligand.frcmod

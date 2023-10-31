@@ -28,7 +28,13 @@ class score:
                 'contacts': self.contacts,
                 'ref': ref_matrix
                 }
+        
+        if self.are_rmsd_resids == True:
+            update['df_resids'] = self.rmsd_resids
 
+        else:
+            update['df_resids'] = self.contacts['receptor']
+            
         os.chdir('..')
 
         return update
