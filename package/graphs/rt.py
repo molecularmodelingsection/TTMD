@@ -128,7 +128,7 @@ class graphs:
 
 def calcRMSD(topology, trajectory):
     u = mda.Universe(topology, trajectory)
-    R = rms.RMSD(u, u, select='backbone', groupselections=['resname LIG'], ref_frame=0).run()
+    R = rms.RMSD(u, u, select='nucleicbackbone', groupselections=['resname LIG'], ref_frame=0).run()
     rmsd_backbone = R.results.rmsd.T[2]
     rmsd_ligand = R.results.rmsd.T[3]
     return rmsd_backbone, rmsd_ligand
@@ -150,7 +150,7 @@ def bsite_rmsd(rmsd_resids, topology, done_temp, stop_range):
 
         n = int(len(u.trajectory)*stop_range/100)
 
-        R = rms.RMSD(u, u, select=f'backbone and ({selection})', ref_frame=0).run()
+        R = rms.RMSD(u, u, select=f'nucleicbackbone and ({selection})', ref_frame=0).run()
         rmsd = list(R.results.rmsd.T[2])
         plain_rmsd.extend(rmsd)
 

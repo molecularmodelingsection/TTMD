@@ -1,4 +1,5 @@
 import importlib
+import os
 import MDAnalysis as mda
 from MDAnalysis.analysis import rms
 import matplotlib.pyplot as plt
@@ -23,8 +24,15 @@ class graphs:
 
         self.rmsd = self.calcRMSD(topology, self.final_dcd)
 
+        if 'rmsd_resids' in self.__dict__.keys():
+            self.bsite, self.avg_rmsd = bsite_rmsd(self.rmsd_resids, self.solvprmtop, self.done_temp, self.stop_range)
+            self.rmsd_slope = self.rmsd_profile()
+        else:
+            self.rmsd_slope = 'Not calculated'
+            self.bsite = 'None'
+            
         self.titration_timeline()
-        self.slope = self.titration_profile()
+        self.ms = self.titration_profile()
 
         self.matrix_profile()
 
@@ -46,7 +54,7 @@ class graphs:
 
         cbar = add_colorbar_outside(s, self.temperature_list, ax=axs[0])
         cbar.set_label('Temperature (K)', rotation=270, labelpad=15)
-        cbar.ax.set_yticklabels(np.array(self.temperature_list).astype('str'))
+        cbar.ax.set_yticklabels(np.unique(np.array(self.temperature_list).astype('str')))
 
 
         # plot RMSD
@@ -103,6 +111,20 @@ class graphs:
         return slope
 
 
+
+    def rmsd_profile(self):
+        title = 'RMSD$_{Bsite Backbone}$ Profile'
+        ylim = [0, None]
+        ylabel = 'Average RMSD$_{B_site Backbone}$'
+        name = 'rmsd_profile'
+        slope_start = 0
+        
+        module = importlib.import_module('..profile_graphs', __name__)
+        slope = module.profile_graph(self.done_temp, self.avg_rmsd, title, ylabel, name, self.colors, ylim=ylim, slope_start=slope_start)
+
+        return slope
+        
+        
 
     def calcRMSD(self, topology, trajectory):
         u = mda.Universe(topology, trajectory)
@@ -169,8 +191,45 @@ class graphs:
         
 
 
+def calcRMSD(topology, trajectory):
+    u = mda.Universe(topology, trajectory)
+    R = rms.RMSD(u, u, select='backbone', groupselections=['resname LIG'], ref_frame=0).run()
+    rmsd_backbone = R.results.rmsd.T[2]
+    rmsd_ligand = R.results.rmsd.T[3]
+    return rmsd_backbone, rmsd_ligand
 
 
+
+def bsite_rmsd(rmsd_resids, topology, done_temp, stop_range):
+    avg_rmsd = []
+    plain_rmsd = []
+    for temp in done_temp:
+        trajectory = os.path.abspath(f'MD/swag_{temp}.dcd')
+        u = mda.Universe(topology, trajectory)
+        selection = ''
+        for i,r in enumerate(rmsd_resids):
+            if i == len(rmsd_resids) -1 :
+                selection += f'resid {r}'
+            else:
+                selection += f'resid {r} or '
+
+        n = int(len(u.trajectory)*stop_range/100)
+
+        R = rms.RMSD(u, u, select=f'backbone and ({selection})', ref_frame=0).run()
+        rmsd = list(R.results.rmsd.T[2])
+        plain_rmsd.extend(rmsd)
+
+        sum = 0
+        for i in rmsd[-n:]:
+            sum += i
+
+        avg = sum / len(rmsd[-n:])
+        avg_rmsd.append(avg)
+
+    return plain_rmsd, avg_rmsd
+    
+    
+    
 def add_colorbar_outside(im, ticks, ax):
     fig = ax.get_figure()
     bbox = ax.get_position() #bbox contains the [x0 (left), y0 (bottom), x1 (right), y1 (top)] of the axis.
@@ -180,7 +239,7 @@ def add_colorbar_outside(im, ticks, ax):
     pad = 0.0
     # [left most position, bottom position, width, height] of color bar.
     cax = fig.add_axes([bbox.x1 + eps, bbox.y0 + pad, width, height])#bbox.height])
-    cbar = fig.colorbar(im, cax=cax, ticks=ticks)
+    cbar = fig.colorbar(im, cax=cax, ticks=np.unique(ticks))
     return cbar
 
 
