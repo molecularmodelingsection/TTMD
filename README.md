@@ -24,9 +24,12 @@ To run the code:
 
 To test the code, an example system is provided in the **test** directory.
 
+This version use prolif to calculate interaction fingerprints.
+
 ## **INSTALLATION NOTES**
 - Use the provided conda env
 - Install prolif v. 2.0.0 (maybe it needs to be installed by cloning it from github)
 ## **ISSUES**
 This version works only for **nucleic acid-ligand complexes** residence time estimation.
+
 (Do not use methods such as `ps` or `apo`).
