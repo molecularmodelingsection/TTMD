@@ -4,11 +4,12 @@ Python code to run Thermal Titration Molecular Dynamics (TTMD) simulations
 Reference publication:  
 **"Qualitative Estimation of Protein-Ligand Complex Stability through Thermal Titration Molecular Dynamics (TTMD) Simulations."**  
 Pavan M., Menin S., Bassani D., Sturlese M., Moro S. (published on *Journal of Chemical Information and Modeling*)  
-https://doi.org/10.1021/acs.jcim.2c00995  
+https://doi.org/10.1021/acs.jcim.2c00995
 
 This script automatizes the passages needed to execute a TTMD simulation, from the system setup, to the equilibration protocol, the production phase and trajectory analyses. A TXT file is provided in order to reconstitute the right Python virtual environment needed to run the TTMD.py script. 
 To reconstitute the right Python virtual environment to run the TTMD.py code:
-- **conda create --name ttmd --file ttmd.txt**
+
+    conda create --name ttmd --file ttmd.txt
 
 The code relies on **external software dependency**:
 - **Visual Molecular Dynamics (VMD)**  
@@ -22,3 +23,10 @@ To run the code:
 3. run the code (**python3 TTMD.py [options]**)
 
 To test the code, an example system is provided in the **test** directory.
+
+## **INSTALLATION NOTES**
+- Use the provided conda env
+- Install prolif v. 2.0.0 (maybe it needs to be installed by cloning it from github)
+## **ISSUES**
+This version works only for **nucleic acid-ligand complexes** residence time estimation.
+(Do not use methods such as `ps` or `apo`).
