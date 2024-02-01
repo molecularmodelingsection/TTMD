@@ -92,7 +92,7 @@ class graphs:
         axs[1].legend()
         axs[1].legend(loc='center left', bbox_to_anchor=(1, 0.5))
         fig.tight_layout()
-        fig.draw_without_rendering() #temporary fix for bug with colorbar label in matplotlb version 3.5.1
+        #fig.draw_without_rendering() #temporary fix for bug with colorbar label in matplotlb version 3.5.1
         fig.savefig('titration_timeline.png', dpi=300)
 
 
