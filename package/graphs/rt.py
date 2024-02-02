@@ -72,17 +72,25 @@ class graphs:
 
 
         y2 = self.rmsd[1]
-        spl2 = make_interp_spline(x, y2, k=5)
-        power_smooth2 = spl2(xnew)
-
-        axs[1].plot(xnew, power_smooth2, color=self.colors[1], label='Ligand')
+        ################# gnovello
+        xnew = np.linspace(x[0], x[-1], smooth)
+        if len(x) > 0 and len(y2) > 0:
+            y2 = np.array(y2)
+            y2 = y2[~np.isinf(y2) & ~np.isnan(y2)]
+            if len(x[:len(y2)]) > 0:
+                spl2 = make_interp_spline(x[:len(y2)], y2, k=5)
+                power_smooth2 = spl2(xnew)
+                axs[1].plot(xnew, power_smooth2, color=self.colors[1], label='Ligand')
         
         if self.bsite != 'None':
             y3 = self.bsite
-            spl3 = make_interp_spline(x, y3, k=5)
-            power_smooth3 = spl3(xnew)
-
-            axs[1].plot(xnew, power_smooth3, color=self.colors[2], label='BSite backbone')
+            if len(x) > 0 and len(y3) > 0:
+                y3 = np.array(y3)
+                y3 = y3[~np.isinf(y3) & ~np.isnan(y3)]
+                if len(x[:len(y3)]) > 0:
+                    spl3 = make_interp_spline(x[:len(y3)], y3, k=5)
+                    power_smooth3 = spl3(xnew)
+                    axs[1].plot(xnew, power_smooth3, color=self.colors[2], label='BSite')
 
         axs[1].set_ylabel('RMSD (Å)')
         axs[1].set_xlabel('Time (ns)')
