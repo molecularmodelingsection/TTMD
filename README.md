@@ -14,7 +14,7 @@ Reference publications:
 
 This script automatizes the passages needed to execute a TTMD simulation, from the system setup to the equilibration protocol, the production phase, and trajectory analyses. A TXT file is provided in order to reconstitute the right Python virtual environment needed to run the TTMD.py script. 
 To reconstitute the right Python virtual environment to run the TTMD.py code:
-- `conda create --name ttmd --file ttmd.txt`
+- `conda create --name ttmd --file env.txt`
 
 The code relies on **external software dependency**:
 - **Visual Molecular Dynamics (VMD)**  
@@ -23,7 +23,7 @@ System setup and parameterization for molecular dynamics is carried out by Amber
 
 N.B. be sure to run the code with at least one Nvidia GPU device.
 
-To run a TTMD simulation on a protein-ligand complex of interest, create a folder containing the TTMD.py script plus the adequately prepared protein and ligand structures in the .pdb and .mol2 format respectively. **Editable settings can be provided either through the command line or a configuration file (this option overrides command line arguments)**. 
+To run a TTMD simulation on a nucleic-peptide/protein complex of interest, create a folder containing the TTMD.py script plus the adequately prepared nucleic structure in the .pdb format and the peptide/protein in both .pdb and .mol2 format, naming it as 'ligand.extension'. **Editable settings can be provided either through the command line or a configuration file (this option overrides command line arguments)**. 
 To run the code:
 1. open a terminal within the directory of interest
 2. activate the right conda environment (`conda activate ttmd`)
