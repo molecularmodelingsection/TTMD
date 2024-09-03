@@ -25,7 +25,7 @@ To run a TTMD simulation on a protein-ligand complex of interest, create a folde
 To run the code:
 1. open a terminal within the directory of interest
 2. activate the right conda environment (**conda activate ttmd**)
-3. run the code (**python3 TTMD.py [options]**)
+3. run the code (**python3 TTMD.py [options]**) (TTMD.py file has to be related to the choosen fingerprint package [oddt|prolif]).
 
 An example system is provided in the **test** directory to test the code.
 
