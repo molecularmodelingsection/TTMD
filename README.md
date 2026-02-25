@@ -1,4 +1,4 @@
-# TTMD RQ-01
+# TTMD - RQ-01
 Python code to run Thermal Titration Molecular Dynamics (TTMD) simulations of the (RQ-01)-(5-HB) complex.
 To run productive TTMD simulations of this system the test cases provided in the "RQ-01 cases" folder must be adopted. With this code, the truncated D chain (mimic of RQ-01 peptide) of the six-helix bundle (6-HB) complex (PDB ID: 7TIK) can be analyzed entirely. To restrict the analysis to specific regions such as the C-terminal D1168-N1178 (simulated "resid 308:318") and the I1179-S1196 portion (simulated "resid 319:336"), the TTMD/package/scoring_function/rt.py and the TTMD/package/graphs/rt.py files must be manually updated, in the sections idicated with the #adodaro comment with the correct resid selection.
 
